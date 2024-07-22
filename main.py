@@ -8,9 +8,11 @@ from zipfile import ZipFile
 url_utilities_update = ['https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe',
                         'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip']
 
+
+download_path = os.path.join(os.getenv('userprofile'), 'Downloads')
 default_path = os.getcwd()
 utilities_path = os.path.join(default_path, 'utilities')
-download_video_path = os.path.join(default_path, 'download')
+download_video_path = os.path.join(download_path, 'youtube')
 
 
 def progress(uploaded, chunk, total):
@@ -59,7 +61,12 @@ def update_utilities(upd_url: str, work_path: str):
 
         # Загрузка
         print(f'Download {save_name}')
-        urlretrieve(upd_url, save_path, reporthook=progress)
+        try:
+            urlretrieve(upd_url, save_path, reporthook=progress)
+        except Exception as err:
+            input(str(err))
+            exit(0)
+
         print()
 
         if 'zip' and 'ffmpeg' in save_name:
