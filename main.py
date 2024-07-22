@@ -14,6 +14,9 @@ default_path = os.getcwd()
 utilities_path = os.path.join(default_path, 'utilities')
 download_video_path = os.path.join(download_path, 'youtube')
 
+sponsorblock_remove_list = ['sponsor', 'selfpromo']
+ytdlp_path = os.path.join(utilities_path, 'yt-dlp.exe')
+
 
 def progress(uploaded, chunk, total):
     uploaded = uploaded * chunk
@@ -164,8 +167,6 @@ def main():
     # Загружаем/обновляем утилиты
     update_loop(url_utilities_update, utilities_path)
 
-    ytdlp_path = os.path.join(utilities_path, 'yt-dlp.exe')
-
     while True:
 
         input_url = input('Введите URL: ')
@@ -184,18 +185,26 @@ def main():
 
         break
 
-    key_list = [
+    ytdlp_key_list = [
         ytdlp_path,
         f'-P {download_path}',
         f'--ffmpeg-location {utilities_path}',
         f'--windows-filenames']
 
+    sponsorblock_answer = input('Удалять спонсорские вставки из видео '
+                                'на основании базы SponsorBlock? n/[y]: ') or 'y'
+
+    if sponsorblock_answer == 'y':
+        sponsorblock_remove = ','.join(sponsorblock_remove_list)
+
+        ytdlp_key_list.append(f'--sponsorblock-remove {sponsorblock_remove}')
+
     if 'playlist' in input_url:
-        key_list.append(f'-o "%(playlist)s/%(title)s [%(id)s].%(ext)s"')
+        ytdlp_key_list.append(f'-o "%(playlist)s/%(title)s [%(id)s].%(ext)s"')
 
     input_url = input_url.split('&')[0]
-    key_list.append(input_url)
-    shell_command = ' '.join(key_list)
+    ytdlp_key_list.append(input_url)
+    shell_command = ' '.join(ytdlp_key_list)
 
     try:
         os.system(shell_command)

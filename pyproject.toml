@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "console-shell-for-ytdlp"
+name = "shell-for-ytdlp"
 version = "0.1.0"
-description = ""
-authors = ["Your Name <you@example.com>"]
+description = "Simple shell for ease of use ytdlp"
+authors = ["Jawerka <eqwdsasd@yandex.ru>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
