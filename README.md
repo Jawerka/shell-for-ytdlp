@@ -9,10 +9,15 @@ Should work on earlier versions as well
 
 ##### Usage:
 - Place the script in a folder convenient for you
-- Run the main.py file through the python interpreter
-Or use [pyinstaller](https://pyinstaller.org/en/stable/index.html)\
-\
-[Install pip](https://pip.pypa.io/en/stable/installation/)
+- Run the main.py file through the python interpreter\
+
+##### Or use [pyinstaller](https://pyinstaller.org/en/stable/index.html):
+- Download the git repository archive (green button)
+- Unzip this archive
+- Navigate inside the directory
+- Hold down Shift and right-click the mouse
+- Select Open Power Shell\CMD here.
+- [Install pip](https://pip.pypa.io/en/stable/installation/)
 ```
 pip install pyinstaller
 pyinstaller --onefile --name 'shell-for-ytdlp' -i icon.ico main.py
