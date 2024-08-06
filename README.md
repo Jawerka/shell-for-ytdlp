@@ -22,6 +22,7 @@ Should work on earlier versions as well
 pip install pyinstaller
 pyinstaller --onefile --name 'shell-for-ytdlp' -i icon.ico main.py
 ```
+``shell-for-ytdlp.exe`` will be located in the ``dist`` directory.
 
 ##### Links to the resources used:
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp)
