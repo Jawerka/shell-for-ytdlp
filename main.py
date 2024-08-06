@@ -1,9 +1,9 @@
 import os
+import json
 import shutil
 from urllib.request import urlopen
 from urllib.request import urlretrieve
 from zipfile import ZipFile
-import json
 
 config_path = os.path.join(os.getcwd(), 'config.json')
 
@@ -199,10 +199,16 @@ def main():
 
         break
 
+    # For some unknown reason, f-string could not parse
+    # direct references to dictionary elements for some users
+    ytdlp_path = config['YTDLP_PATH']
+    download_path = config['DOWNLOAD_PATH']
+    utilities_path = config['UTILITIES_PATH']
+
     ytdlp_key_list = [
-        config['YTDLP_PATH'],
-        f'-P {config['DOWNLOAD_PATH']}',
-        f'--ffmpeg-location {config['UTILITIES_PATH']}',
+        ytdlp_path,
+        f'-P {download_path}',
+        f'--ffmpeg-location {utilities_path}',
         f'--windows-filenames',
         f'--concurrent-fragments 8']
 
