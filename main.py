@@ -169,7 +169,7 @@ def main():
 
     while True:
 
-        input_url = input('Введите URL: ')
+        input_url = input('Enter URL: ')
 
         # Availability check
         try:
