@@ -5,11 +5,11 @@ Should work on earlier versions as well
 #### Features:
 - Downloading videos from youtube
 - Download playlist from youtube
-- Automatic removal of sponsored inserts based on SponsorBlock database\
+- Automatic removal of sponsored inserts based on SponsorBlock database
 
 #### Usage:
 - Place the script in a folder convenient for you
-- Run the main.py file through the python interpreter\
+- Run the main.py file through the python interpreter
 
 #### Or use [pyinstaller](https://pyinstaller.org/en/stable/index.html) for Windows users:
 - Download the git repository archive (green button)
