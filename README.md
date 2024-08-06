@@ -3,8 +3,8 @@
 Should work on earlier versions as well
 
 ##### Features:
-- Uploading videos from youtube
-- Upload playlist from youtube
+- Downloading videos from youtube
+- Download playlist from youtube
 - Automatic removal of sponsored inserts based on SponsorBlock database\
 
 ##### Usage:
