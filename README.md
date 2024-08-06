@@ -11,7 +11,7 @@ Should work on earlier versions as well
 - Place the script in a folder convenient for you
 - Run the main.py file through the python interpreter\
 
-##### Or use [pyinstaller](https://pyinstaller.org/en/stable/index.html):
+##### Or use [pyinstaller](https://pyinstaller.org/en/stable/index.html) for Windows users:
 - Download the git repository archive (green button)
 - Unzip this archive
 - Navigate inside the directory
