@@ -27,6 +27,9 @@ else:
     config['UTILITIES_PATH'] = os.path.join(config['DAFAULT_PATH'], 'utilities')
     config['YTDLP_PATH'] = os.path.join(config['UTILITIES_PATH'], 'yt-dlp.exe')
 
+    if not os.path.exists(config['DOWNLOAD_PATH']):
+        config['DOWNLOAD_PATH'] = config['DAFAULT_PATH']
+
 
 def progress(uploaded, chunk, total):
     uploaded = uploaded * chunk
