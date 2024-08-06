@@ -28,7 +28,7 @@ def progress(uploaded, chunk, total):
 
 def update_utilities(upd_url: str, work_path: str):
     """
-    Функция обновления/загрузки необходимых файлов
+    Function for updating/downloading necessary files
     """
 
     save_name = None
@@ -44,25 +44,25 @@ def update_utilities(upd_url: str, work_path: str):
             download_file_size = int(response.getheader('Content-Length').strip())
 
             if os.path.getsize(save_path) != download_file_size:
-                # Если размер загруженного файла отличается от размера файла в интернете
-                # То загруженный файл удаляется и делается повторный вызов на загрузку
+                # If the size of the downloaded file is different from the size of the Internet file
+                # The downloaded file is deleted and the download is called again
 
                 os.remove(save_path)
                 update_utilities(upd_url, work_path)
                 return
 
             else:
-                # Если размер совпадает (и это не FFMPEG),
-                # то считаем что файл последней версии и просто выходим
+                # If the size matches (and it's not FFMPEG),
+                # then assume the file is the latest version and just exit
                 if 'zip' and 'ffmpeg' not in save_name:
                     return
 
-                # Если это архив с FFMPEG, то дополнительно проверяем, распакован ли ffmpeg.exe
+                # If it is an archive with FFMPEG, additionally check if ffmpeg.exe is unpacked.
                 if not os.path.exists(os.path.join(work_path, 'ffmpeg.exe')):
                     unzipping_ffmpeg(save_path, work_path)
                 return
 
-        # Загрузка
+        # Downloading
         print(f'Download {save_name}')
         try:
             urlretrieve(upd_url, save_path, reporthook=progress)
@@ -73,7 +73,7 @@ def update_utilities(upd_url: str, work_path: str):
         print()
 
         if 'zip' and 'ffmpeg' in save_name:
-            # Специфичное только для ffmpeg.zip
+            # Specific only to ffmpeg.zip
             unzipping_ffmpeg(save_path, work_path)
 
     except KeyboardInterrupt:
@@ -96,9 +96,9 @@ def update_utilities(upd_url: str, work_path: str):
 
 def unzipping_ffmpeg(full_path: str, utilities_path: str):
     """
-    Специфичное [...] для распаковки архива с FFMPEG
-    распаковывает FFMPEG FFPROBE и FFPLAY в папку {utilities_path}
-    для удобства дальнейшей работы
+    Specific [...] for unpacking a FFMPEG archive
+    unpack FFMPEG FFPROBE and FFPLAY into the {utilities_path} folder
+    for ease of further work
     """
 
     ffmpeg_file_list = [
@@ -109,7 +109,7 @@ def unzipping_ffmpeg(full_path: str, utilities_path: str):
     ffmpeg_folder_name = os.path.basename(full_path).split('.')[0]
     bin_path = os.path.join(utilities_path, ffmpeg_folder_name, 'bin')
 
-    # Удаляем старые файлы
+    # Delete the old files
     for ff_file in ffmpeg_file_list:
 
         ff_file_path = os.path.join(utilities_path, ff_file)
@@ -120,7 +120,7 @@ def unzipping_ffmpeg(full_path: str, utilities_path: str):
     if os.path.exists(ffmpeg_folder_path):
         shutil.rmtree(ffmpeg_folder_path)
 
-    # Распаковка архива
+    # Unzip the archive
     with ZipFile(full_path, 'r') as zfile:
         zfile.extractall(utilities_path)
 
@@ -145,11 +145,11 @@ def intro(download_video_path):
         os.mkdir(download_video_path)
 
     new_download_video_path = (
-            input(f'Введите путь сохранения, если он отличается от: {download_video_path} ')
+            input(f'Enter the save path if it is different from: {download_video_path} ')
             or download_video_path)
 
     if not os.path.exists(new_download_video_path):
-        input(f'Введенный путь не существует, будет использован {download_video_path} ')
+        input(f'The entered path does not exist, it will be used {download_video_path} ')
 
     else:
         download_video_path = new_download_video_path
@@ -161,17 +161,17 @@ def intro(download_video_path):
 
 
 def main():
-    # Запрашиваем измнение пути сохранения
+    # Request to change the save path
     download_path = intro(download_video_path)
 
-    # Загружаем/обновляем утилиты
+    # Downloading/updating utilities
     update_loop(url_utilities_update, utilities_path)
 
     while True:
 
         input_url = input('Введите URL: ')
 
-        # Проверка на доступность
+        # Availability check
         try:
             response = urlopen(input_url)
 
@@ -189,10 +189,11 @@ def main():
         ytdlp_path,
         f'-P {download_path}',
         f'--ffmpeg-location {utilities_path}',
-        f'--windows-filenames']
+        f'--windows-filenames',
+        f'--concurrent-fragments 8']
 
-    sponsorblock_answer = input('Удалять спонсорские вставки из видео '
-                                'на основании базы SponsorBlock? n/[y]: ') or 'y'
+    sponsorblock_answer = input('Remove sponsored embeds from videos '
+                                'based on SponsorBlock base? n/[y]: ') or 'y'
 
     if sponsorblock_answer == 'y':
         sponsorblock_remove = ','.join(sponsorblock_remove_list)
