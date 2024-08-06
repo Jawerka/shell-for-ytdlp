@@ -3,19 +3,29 @@ import shutil
 from urllib.request import urlopen
 from urllib.request import urlretrieve
 from zipfile import ZipFile
+import json
 
+config_path = os.path.join(os.getcwd(), 'config.json')
 
-url_utilities_update = ['https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe',
-                        'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip']
+# If config.json exists, read it
+if os.path.exists(config_path):
+    with open(config_path, 'r') as file:
+        config = json.load(file)
 
+else:
+    config = {
+        'URL_UTILITIES_UPDATE':
+            ['https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe',
+             'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip'],
+        'DAFAULT_PATH': os.getcwd(),
+        'UTILITIES_PATH': '',
+        'DOWNLOAD_PATH': os.path.join(os.getenv('userprofile'), 'Downloads'),
+        'SPONSORBLOCK_REMOVE_LIST': ['sponsor', 'selfpromo'],
+        'YTDLP_PATH': '',
+    }
 
-download_path = os.path.join(os.getenv('userprofile'), 'Downloads')
-default_path = os.getcwd()
-utilities_path = os.path.join(default_path, 'utilities')
-download_video_path = os.path.join(download_path, 'youtube')
-
-sponsorblock_remove_list = ['sponsor', 'selfpromo']
-ytdlp_path = os.path.join(utilities_path, 'yt-dlp.exe')
+    config['UTILITIES_PATH'] = os.path.join(config['DAFAULT_PATH'], 'utilities')
+    config['YTDLP_PATH'] = os.path.join(config['UTILITIES_PATH'], 'yt-dlp.exe')
 
 
 def progress(uploaded, chunk, total):
@@ -141,8 +151,6 @@ def update_loop(url_list: str, utilities_path: str):
 
 
 def intro(download_video_path):
-    if not os.path.exists(download_video_path):
-        os.mkdir(download_video_path)
 
     new_download_video_path = (
             input(f'Enter the save path if it is different from: {download_video_path} ')
@@ -154,6 +162,9 @@ def intro(download_video_path):
     else:
         download_video_path = new_download_video_path
 
+    if not download_video_path.endswith('/youtube/'):
+        download_video_path = os.path.join(download_video_path, 'youtube')
+
     if not os.path.exists(download_video_path):
         os.mkdir(download_video_path)
 
@@ -162,14 +173,14 @@ def intro(download_video_path):
 
 def main():
     # Request to change the save path
-    download_path = intro(download_video_path)
+    config['DOWNLOAD_PATH'] = intro(config['DOWNLOAD_PATH'])
 
     # Downloading/updating utilities
-    update_loop(url_utilities_update, utilities_path)
+    update_loop(config['URL_UTILITIES_UPDATE'], config['UTILITIES_PATH'])
 
     while True:
 
-        input_url = input('Enter URL: ')
+        input_url = input('Введите URL: ')
 
         # Availability check
         try:
@@ -186,9 +197,9 @@ def main():
         break
 
     ytdlp_key_list = [
-        ytdlp_path,
-        f'-P {download_path}',
-        f'--ffmpeg-location {utilities_path}',
+        config['YTDLP_PATH'],
+        f'-P {config['DOWNLOAD_PATH']}',
+        f'--ffmpeg-location {config['UTILITIES_PATH']}',
         f'--windows-filenames',
         f'--concurrent-fragments 8']
 
@@ -196,7 +207,7 @@ def main():
                                 'based on SponsorBlock base? n/[y]: ') or 'y'
 
     if sponsorblock_answer == 'y':
-        sponsorblock_remove = ','.join(sponsorblock_remove_list)
+        sponsorblock_remove = ','.join(config['SPONSORBLOCK_REMOVE_LIST'])
 
         ytdlp_key_list.append(f'--sponsorblock-remove {sponsorblock_remove}')
 
@@ -216,6 +227,9 @@ def main():
 
     except Exception as err:
         input(str(err))
+
+    with open(config_path, 'w') as configfile:
+        json.dump(config, configfile, indent=4)
 
 
 main()
