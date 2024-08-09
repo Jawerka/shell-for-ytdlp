@@ -165,9 +165,6 @@ def intro(download_video_path):
     else:
         download_video_path = new_download_video_path
 
-    if not download_video_path.endswith('/youtube/'):
-        download_video_path = os.path.join(download_video_path, 'youtube')
-
     if not os.path.exists(download_video_path):
         os.mkdir(download_video_path)
 
