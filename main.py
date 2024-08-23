@@ -44,6 +44,11 @@ def update_utilities(upd_url: str, work_path: str):
     Function for updating/downloading necessary files
     """
 
+    ffmpeg_file_list = [
+                'ffmpeg.exe',
+                'ffplay.exe',
+                'ffprobe.exe']
+
     save_name = None
     save_path = None
 
@@ -54,6 +59,14 @@ def update_utilities(upd_url: str, work_path: str):
         save_path = os.path.join(work_path, save_name)
 
         if os.path.exists(save_path):
+            if 'zip' and 'ffmpeg' in save_name:
+                # If it is an archive with FFMPEG, additionally check if ffmpeg.exe is unpacked.
+                for ff_file in ffmpeg_file_list:
+                    if not os.path.exists(os.path.join(work_path, ff_file)):
+                        unzipping_ffmpeg(save_path, work_path)
+                else:
+                    return
+
             download_file_size = int(response.getheader('Content-Length').strip())
 
             if os.path.getsize(save_path) != download_file_size:
