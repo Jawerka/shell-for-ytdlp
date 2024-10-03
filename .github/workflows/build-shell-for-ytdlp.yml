@@ -33,20 +33,20 @@ jobs:
           requirements: 'requirements.txt'
 
       - name: List dist directory
-        run: Get-ChildItem -Path "D:\a\shell-for-ytdlp\shell-for-ytdlp\dist"
+        run: tree "D:\a\shell-for-ytdlp\shell-for-ytdlp\dist" /F /A
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
           name: shell-for-ytdlp
-          path: dist/shell-for-ytdlp.exe
+          path: dist/shell-for-ytdlp/shell-for-ytdlp.exe
 
       - name: Create Draft Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >-
           gh release create v0.1
-          dist/shell-for-ytdlp.exe
+          dist/shell-for-ytdlp/shell-for-ytdlp.exe
           --generate-notes
           --title "Version v0.1"
           --draft
