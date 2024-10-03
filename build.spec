@@ -6,8 +6,10 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=[],
+    datas=[
+        ('C:\\hostedtoolcache\\windows\\Python\\3.12.6\\x64\\DLLs\\*', '.'),
+    ],
+    hiddenimports=['pyperclip'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
