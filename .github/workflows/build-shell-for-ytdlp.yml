@@ -22,7 +22,7 @@ jobs:
 
       - name: Create dist directory if not exists
         run: |
-          if not exist dist mkdir dist
+          if (-Not (Test-Path dist)) { New-Item -ItemType Directory -Path dist }
 
       - name: Create Executable
         uses: sayyid5416/pyinstaller@v1
