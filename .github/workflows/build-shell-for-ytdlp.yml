@@ -32,7 +32,7 @@ jobs:
           requirements: 'requirements.txt'
 
       - name: List dist directory after build
-        run: dir dist
+        run: tree ${{ github.workspace }} /f
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
