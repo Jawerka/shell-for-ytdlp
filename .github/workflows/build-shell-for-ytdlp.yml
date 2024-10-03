@@ -23,18 +23,18 @@ jobs:
           pip install pyinstaller
 
       - name: Create Executable
-        run: pyinstaller --onefile --add-data "C:\hostedtoolcache\windows\Python\3.12.6\x64\DLLs\*.dll;DLLs" --hidden-import pyperclip --icon "icon.ico" main.py
+        run: pyinstaller --onefile --add-data "C:\hostedtoolcache\windows\Python\3.12.6\x64\DLLs\*.dll;DLLs" --hidden-import pyperclip --icon "icon.ico" --name "shell-for-ytdlp" main.py
 
       - name: List dist directory
-        run: tree dist
+        run: tree dist -F -a
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: shell-for-ytdlp
-          path: dist/shell-for-ytdlp/shell-for-ytdlp.exe
+          path: dist/shell-for-ytdlp.exe
 
       - name: Create Draft Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "v0.1" dist/shell-for-ytdlp/shell-for-ytdlp.exe --draft --generate-notes --title "Version v0.1"
+        run: gh release create "v0.1" dist/shell-for-ytdlp.exe --draft --generate-notes --title "Version v0.1"
