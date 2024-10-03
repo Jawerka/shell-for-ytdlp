@@ -8,11 +8,6 @@ jobs:
     runs-on: windows-latest
     permissions: write-all
     steps:
-      - name: Set Release Version
-        id: vars
-        run: echo "RELEASE_VERSION=v0.1" >> $GITHUB_ENV
-        # Установите номер версии релиза для использования в процессе релиза
-
       - name: Checkout Code
         uses: actions/checkout@v4
 
@@ -31,15 +26,15 @@ jobs:
         run: pyinstaller --onefile --add-data "C:\hostedtoolcache\windows\Python\3.12.6\x64\DLLs\*.dll;DLLs" --hidden-import pyperclip --icon "icon.ico" main.py
 
       - name: List dist directory
-        run: dir dist
+        run: tree dist
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: shell-for-ytdlp
-          path: dist/shell-for-ytdlp.exe
+          path: dist/shell-for-ytdlp/shell-for-ytdlp.exe
 
       - name: Create Draft Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "${{ env.RELEASE_VERSION }}" dist/shell-for-ytdlp.exe --draft --generate-notes --title "Version ${{ env.RELEASE_VERSION }}"
+        run: gh release create "v0.1" dist/shell-for-ytdlp/shell-for-ytdlp.exe --draft --generate-notes --title "Version v0.1"
