@@ -4,12 +4,10 @@ block_cipher = None
 
 a = Analysis(
     ['main.py'],
-    pathex=['src'],
+    pathex=[],
     binaries=[],
-    datas=[
-        ('icon.ico', '.'),
-    ],
-    hiddenimports=['pyperclip'],
+    datas=[],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -20,7 +18,7 @@ a = Analysis(
     noarchive=False,
 )
 
-pyz = PYZ(a.pure, a.zipped, cipher=block_cipher)
+pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 exe = EXE(
     pyz,
@@ -33,7 +31,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=True,
-    icon='src/icon.ico',
+    icon='icon.ico',
 )
 
 coll = COLLECT(

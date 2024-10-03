@@ -24,7 +24,7 @@ jobs:
         uses: sayyid5416/pyinstaller@v1
         with:
           python_ver: '3.12'
-          spec: 'src/build.spec'
+          spec: 'build.spec'
           requirements: 'requirements.txt'
 
       - name: Upload Artifact
@@ -43,7 +43,7 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
+
       - name: Upload Executable to Release
         uses: softprops/action-gh-release@v1
         with:
