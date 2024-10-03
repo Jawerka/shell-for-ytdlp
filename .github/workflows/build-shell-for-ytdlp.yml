@@ -31,14 +31,14 @@ jobs:
           spec: 'build.spec'
           requirements: 'requirements.txt'
 
-      - name: List dist directory
+      - name: List dist directory after build
         run: dir dist
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
         with:
           name: shell-for-ytdlp
-          path: dist/shell-for-ytdlp.exe
+          path: ${{ github.workspace }}\dist\shell-for-ytdlp.exe
 
       - name: Create Release
         id: create_release
@@ -55,6 +55,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: v0.1
-          files: dist/shell-for-ytdlp.exe
+          files: ${{ github.workspace }}\dist\shell-for-ytdlp.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
