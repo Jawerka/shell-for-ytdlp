@@ -18,7 +18,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt  # Указываем путь к requirements.txt в корне проекта
+          pip install -r requirements.txt
 
       - name: Create Executable
         uses: sayyid5416/pyinstaller@v1
