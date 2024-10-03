@@ -28,12 +28,7 @@ jobs:
           pip install pyinstaller
 
       - name: Create Executable
-        run: |
-          pyinstaller --onefile ^
-            --add-data "C:\hostedtoolcache\windows\Python\3.12.6\x64\DLLs\*.dll;DLLs" ^
-            --hidden-import pyperclip ^
-            --icon "icon.ico" ^
-            main.py
+        run: pyinstaller --onefile --add-data "C:\hostedtoolcache\windows\Python\3.12.6\x64\DLLs\*.dll;DLLs" --hidden-import pyperclip --icon "icon.ico" main.py
 
       - name: List dist directory
         run: dir dist
@@ -47,9 +42,4 @@ jobs:
       - name: Create Draft Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release create "${{ env.RELEASE_VERSION }}" ^
-            dist/shell-for-ytdlp.exe ^
-            --draft ^
-            --generate-notes ^
-            --title "Version ${{ env.RELEASE_VERSION }}"
+        run: gh release create "${{ env.RELEASE_VERSION }}" dist/shell-for-ytdlp.exe --draft --generate-notes --title "Version ${{ env.RELEASE_VERSION }}"
