@@ -1,3 +1,8 @@
+<div align="center">
+    <h1>shell-for-ytdlp</h1>
+    <img src="https://github.com/Jawerka/shell-for-ytdlp/blob/master/icon.png?raw=true" alt="Описание изображения" width="200" height="200" />
+</div>
+
 #### Features:
 - Downloading videos from youtube
 - Download playlist from youtube
@@ -6,6 +11,7 @@
 #### Usage:
 - Download [lasted executable file](https://github.com/Jawerka/shell-for-ytdlp/releases/latest/download/shell-for-ytdlp.exe)
 - Place it in a folder that is convenient for you
+- Run
 - At the first startup, ``ytdlp`` and ``ffmpeg`` will be loaded into the ``./utilites`` folder.
 - After the first successful download, your settings will be written to the ``config.json`` file.
 
