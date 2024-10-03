@@ -33,6 +33,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=True,
+    onefile=True,
     icon='icon.ico',
 )
 
