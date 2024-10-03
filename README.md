@@ -39,8 +39,6 @@ pip install pyinstaller
 pyinstaller --hidden-import pyperclip --icon "icon.ico" --name "shell-for-ytdlp" main.py
 ```
 ``shell-for-ytdlp.exe`` will be located in the ``dist`` directory.
-\
-You can change the settings in the ``config.json`` file. It will be generated after the first successful download.
 
 #### Links to the resources used:
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp)
