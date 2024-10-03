@@ -1,0 +1,55 @@
+name: Build shell-for-ytdlp Executable
+
+on:
+  workflow_dispatch:
+
+jobs:
+  pyinstaller-build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt  # Указываем путь к requirements.txt в корне проекта
+
+      - name: Create Executable
+        uses: sayyid5416/pyinstaller@v1
+        with:
+          python_ver: '3.12'
+          spec: 'src/build.spec'
+          requirements: 'requirements.txt'
+          upload_exe_with_name: 'shell-for-ytdlp'
+          options: --onefile, --name "shell-for-ytdlp", --icon "src/icon.ico"
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: shell-for-ytdlp
+          path: dist/shell-for-ytdlp.exe
+
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v0.1
+          release_name: Release v0.1
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Executable to Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v0.1
+          files: dist/shell-for-ytdlp.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
