@@ -11,7 +11,7 @@ jobs:
       - name: Set Release Version
         id: vars
         run: echo "RELEASE_VERSION=v0.1" >> $GITHUB_ENV
-        # Set the release version number for use in the release process
+        # Установите номер версии релиза для использования в процессе релиза
 
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -29,10 +29,10 @@ jobs:
 
       - name: Create Executable
         run: |
-          pyinstaller --onefile \
-            --add-data "C:\hostedtoolcache\windows\Python\3.12.6\x64\DLLs\*.dll;DLLs" \
-            --hidden-import pyperclip \
-            --icon "icon.ico" \
+          pyinstaller --onefile ^
+            --add-data "C:\hostedtoolcache\windows\Python\3.12.6\x64\DLLs\*.dll;DLLs" ^
+            --hidden-import pyperclip ^
+            --icon "icon.ico" ^
             main.py
 
       - name: List dist directory
@@ -48,8 +48,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ env.RELEASE_VERSION }}" \
-            dist/shell-for-ytdlp.exe \
-            --draft \
-            --generate-notes \
+          gh release create "${{ env.RELEASE_VERSION }}" ^
+            dist/shell-for-ytdlp.exe ^
+            --draft ^
+            --generate-notes ^
             --title "Version ${{ env.RELEASE_VERSION }}"
