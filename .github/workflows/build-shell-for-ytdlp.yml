@@ -8,7 +8,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -26,8 +26,6 @@ jobs:
           python_ver: '3.12'
           spec: 'src/build.spec'
           requirements: 'requirements.txt'
-          upload_exe_with_name: 'shell-for-ytdlp'
-          options: --onefile, --name "shell-for-ytdlp", --icon "src/icon.ico"
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v3
@@ -45,7 +43,7 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+        
       - name: Upload Executable to Release
         uses: softprops/action-gh-release@v1
         with:
