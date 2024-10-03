@@ -1,6 +1,7 @@
 import os
 import json
 import shutil
+import pyperclip
 from urllib.request import urlopen
 from urllib.request import urlretrieve
 from zipfile import ZipFile
@@ -192,8 +193,19 @@ def main():
     update_loop(config['URL_UTILITIES_UPDATE'], config['UTILITIES_PATH'])
 
     while True:
+        possible_url = pyperclip.paste()
 
-        input_url = input('Enter URL: ')
+        question = 'Enter URL: '
+        if 'https://' in possible_url:
+            try:
+                response = urlopen(possible_url)
+                question = (f'In your clipboard is a link: {possible_url}\n'
+                            f'Press Enter if you want to download it, or enter a different URL: ')
+            except:
+                possible_url = ''
+                pass
+
+        input_url = input(question) or possible_url
 
         # Availability check
         try:
@@ -219,6 +231,7 @@ def main():
         ytdlp_path,
         f'-P {download_path}',
         f'--ffmpeg-location {utilities_path}',
+        f'--no-mtime',
         f'--windows-filenames',
         f'--concurrent-fragments 8']
 
