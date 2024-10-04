@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "shell-for-ytdlp"
-version = "0.1.0"
+version = "0.1.1"
 description = "Simple shell for ease of use ytdlp"
 authors = ["Jawerka <eqwdsasd@yandex.ru>"]
 readme = "README.md"

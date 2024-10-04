@@ -223,14 +223,14 @@ def main():
 
     # For some unknown reason, f-string could not parse
     # direct references to dictionary elements for some users
-    ytdlp_path = config['YTDLP_PATH']
-    download_path = config['DOWNLOAD_PATH']
-    utilities_path = config['UTILITIES_PATH']
+    ytdlp_path = os.path.join(config['YTDLP_PATH'].replace('"', ''))
+    download_path = os.path.join(config['DOWNLOAD_PATH'].replace('"', ''))
+    utilities_path = os.path.join(config['UTILITIES_PATH'].replace('"', ''))
 
     ytdlp_key_list = [
-        ytdlp_path,
-        f'-P {download_path}',
-        f'--ffmpeg-location {utilities_path}',
+        f'{ytdlp_path}',
+        f'-P "{download_path}"',
+        f'--ffmpeg-location "{utilities_path}"',
         f'--no-mtime',
         f'--windows-filenames',
         f'--concurrent-fragments 8']
