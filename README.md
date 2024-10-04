@@ -40,6 +40,9 @@ pyinstaller --hidden-import pyperclip --icon "icon.ico" --name "shell-for-ytdlp"
 ```
 ``shell-for-ytdlp.exe`` will be located in the ``dist`` directory.
 
+#### Known issues:
+- No support for space characters in the startup path
+
 #### Links to the resources used:
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp)
 - [FFmpeg](https://github.com/FFmpeg/FFmpeg)
