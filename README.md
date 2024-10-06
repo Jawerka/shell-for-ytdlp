@@ -38,6 +38,8 @@ pip install pyinstaller
 python -m venv venv
 venv/Scripts/activate
 python -m pip install -r requirements.txt --no-cache-dir
+```
+```
 pyinstaller --onefile --path venv/Lib/site-packages --hidden-import pyperclip,inputimeout --name 'shell-for-ytdlp' -i icon.ico main.py
 ```
 ``shell-for-ytdlp.exe`` will be located in the ``dist`` directory.
