@@ -1,9 +1,10 @@
-\.idea
-\ui
-\build
-\utilities
-\download
+/.idea
+/ui
+/dist
+/venv
+/build
+/utilities
+/download
 board.md
 config.json
 shell-for-ytdlp.spec
-/dist/

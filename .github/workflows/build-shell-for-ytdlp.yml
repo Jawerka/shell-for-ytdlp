@@ -24,7 +24,7 @@ jobs:
 
       - name: Create Executable
         run: |
-          pyinstaller --onefile --add-data "C:\hostedtoolcache\windows\Python\3.12.6\x64\DLLs\*.dll;DLLs" --hidden-import pyperclip --icon "icon.ico" --name "shell-for-ytdlp" main.py
+          pyinstaller --onefile --add-data "C:\hostedtoolcache\windows\Python\3.12.6\x64\DLLs\*.dll;DLLs" --hidden-import pyperclip,inputimeout --icon "icon.ico" --name "shell-for-ytdlp" main.py
 
       - name: List dist directory
         run: tree dist /F /A

@@ -1,17 +1,24 @@
 import os
 import json
 import shutil
+import time
+
 import pyperclip
 from urllib.request import urlopen
 from urllib.request import urlretrieve
 from zipfile import ZipFile
+from inputimeout import inputimeout, TimeoutOccurred
 
 config_path = os.path.join(os.getcwd(), 'config.json')
+yes_answers = ['y', 'yes', 'д', 'да']
 
 # If config.json exists, read it
 if os.path.exists(config_path):
     with open(config_path, 'r') as file:
         config = json.load(file)
+
+    if not config.get('QUESTION_BYPASS'):
+        config['QUESTION_BYPASS'] = False
 
 else:
     config = {
@@ -23,6 +30,7 @@ else:
         'DOWNLOAD_PATH': os.path.join(os.getenv('userprofile'), 'Downloads'),
         'SPONSORBLOCK_REMOVE_LIST': ['sponsor', 'selfpromo'],
         'YTDLP_PATH': '',
+        'QUESTION_BYPASS': False
     }
 
     config['UTILITIES_PATH'] = os.path.join(config['DAFAULT_PATH'], 'utilities')
@@ -46,9 +54,9 @@ def update_utilities(upd_url: str, work_path: str):
     """
 
     ffmpeg_file_list = [
-                'ffmpeg.exe',
-                'ffplay.exe',
-                'ffprobe.exe']
+        'ffmpeg.exe',
+        'ffplay.exe',
+        'ffprobe.exe']
 
     save_name = None
     save_path = None
@@ -129,9 +137,9 @@ def unzipping_ffmpeg(full_path: str, utilities_path: str):
     """
 
     ffmpeg_file_list = [
-                'ffmpeg.exe',
-                'ffplay.exe',
-                'ffprobe.exe']
+        'ffmpeg.exe',
+        'ffplay.exe',
+        'ffprobe.exe']
 
     ffmpeg_folder_name = os.path.basename(full_path).split('.')[0]
     bin_path = os.path.join(utilities_path, ffmpeg_folder_name, 'bin')
@@ -168,7 +176,6 @@ def update_loop(url_list: str, utilities_path: str):
 
 
 def intro(download_video_path):
-
     new_download_video_path = (
             input(f'Enter the save path if it is different from: {download_video_path} ')
             or download_video_path)
@@ -187,7 +194,8 @@ def intro(download_video_path):
 
 def main():
     # Request to change the save path
-    config['DOWNLOAD_PATH'] = intro(config['DOWNLOAD_PATH'])
+    if not config['QUESTION_BYPASS']:
+        config['DOWNLOAD_PATH'] = intro(config['DOWNLOAD_PATH'])
 
     # Downloading/updating utilities
     update_loop(config['URL_UTILITIES_UPDATE'], config['UTILITIES_PATH'])
@@ -199,13 +207,16 @@ def main():
         if 'https://' in possible_url:
             try:
                 response = urlopen(possible_url)
-                question = (f'In your clipboard is a link: {possible_url}\n'
+                question = (f'\nIn your clipboard is a link: {possible_url}\n'
                             f'Press Enter if you want to download it, or enter a different URL: ')
             except:
                 possible_url = ''
                 pass
 
-        input_url = input(question) or possible_url
+        if not config['QUESTION_BYPASS']:
+            input_url = input(question) or possible_url
+        else:
+            input_url = possible_url
 
         # Availability check
         try:
@@ -216,8 +227,8 @@ def main():
             exit(0)
 
         except Exception as err:
-            print(str(err), end=f'\n{"*"*50}\n')
-            continue
+            input(str(err))
+            exit(0)
 
         break
 
@@ -235,8 +246,10 @@ def main():
         f'--windows-filenames',
         f'--concurrent-fragments 8']
 
-    sponsorblock_answer = input('Remove sponsored embeds from videos '
-                                'based on SponsorBlock base? n/[y]: ') or 'y'
+    sponsorblock_answer = 'y'
+    if not config['QUESTION_BYPASS']:
+        sponsorblock_answer = input('\nRemove sponsored embeds from videos '
+                                    'based on SponsorBlock base? n/[Y]: ') or 'y'
 
     if sponsorblock_answer == 'y':
         sponsorblock_remove = ','.join(config['SPONSORBLOCK_REMOVE_LIST'])
@@ -260,8 +273,28 @@ def main():
     except Exception as err:
         input(str(err))
 
+    if not config['QUESTION_BYPASS']:
+        prompt = ("\nSkip all the questions next time?"
+                  "\nThe link will be taken from the clipboard on startup. [N]/y: ")
+
+        try:
+            answer = inputimeout(prompt=prompt, timeout=10)
+        except TimeoutOccurred:
+            answer = False
+
+        if answer:
+            if any(str(answer).lower() == x for x in yes_answers):
+                config['QUESTION_BYPASS'] = True
+                print(f'\nConfiguration will be written to {config_path}')
+                time.sleep(5)
+            else:
+                config['QUESTION_BYPASS'] = False
+        else:
+            config['QUESTION_BYPASS'] = False
+
     with open(config_path, 'w') as configfile:
         json.dump(config, configfile, indent=4)
+        inputimeout(prompt='Done', timeout=5)
 
 
 main()

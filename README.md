@@ -34,9 +34,11 @@ pip install -r requirements.txt
 - Select Open Power Shell\CMD here.
 - [Install pip](https://pip.pypa.io/en/stable/installation/)
 ```
-pip install -r requirements.txt
 pip install pyinstaller
-pyinstaller --hidden-import pyperclip --icon "icon.ico" --name "shell-for-ytdlp" main.py
+python -m venv venv
+venv/Scripts/activate
+python -m pip install -r requirements.txt --no-cache-dir
+pyinstaller --onefile --path venv/Lib/site-packages --hidden-import pyperclip,inputimeout --name 'shell-for-ytdlp' -i icon.ico main.py
 ```
 ``shell-for-ytdlp.exe`` will be located in the ``dist`` directory.
 
