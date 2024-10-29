@@ -241,6 +241,8 @@ def main():
     ytdlp_key_list = [
         f'{ytdlp_path}',
         f'-P "{download_path}"',
+        f'--continue',
+        f'--retry-sleep 5',
         f'--ffmpeg-location "{utilities_path}"',
         f'--no-mtime',
         f'--windows-filenames',
@@ -294,7 +296,10 @@ def main():
 
     with open(config_path, 'w') as configfile:
         json.dump(config, configfile, indent=4)
-        inputimeout(prompt='Done', timeout=5)
+        try:
+            inputimeout(prompt='Done', timeout=5)
+        except:
+            pass
 
 
 main()
