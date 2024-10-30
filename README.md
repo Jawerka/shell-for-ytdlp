@@ -7,6 +7,7 @@
 - Downloading videos from youtube
 - Download playlist from youtube
 - Automatic removal of sponsored inserts based on SponsorBlock database
+- Continuation of the interrupted download (same link must be specified again)
 
 #### Usage:
 - Download [lasted executable file](https://github.com/Jawerka/shell-for-ytdlp/releases/latest/download/shell-for-ytdlp.exe)
