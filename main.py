@@ -12,32 +12,53 @@ from inputimeout import inputimeout, TimeoutOccurred
 config_path = os.path.join(os.getcwd(), 'config.json')
 yes_answers = ['y', 'yes', 'д', 'да']
 
+
+pre_config = {
+    'URL_UTILITIES_UPDATE':
+        ['https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe',
+         'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip'],
+    'DAFAULT_PATH': os.getcwd(),
+    'UTILITIES_PATH': '',
+    'DOWNLOAD_PATH': os.path.join(os.getenv('userprofile'), 'Downloads'),
+    'SPONSORBLOCK_REMOVE_LIST': ['sponsor', 'selfpromo'],
+    'YTDLP_PATH': '',
+    'QUESTION_BYPASS': False
+}
+
+pre_config['UTILITIES_PATH'] = os.path.join(pre_config['DAFAULT_PATH'], 'utilities')
+pre_config['YTDLP_PATH'] = os.path.join(pre_config['UTILITIES_PATH'], 'yt-dlp.exe')
+
+if not os.path.exists(pre_config['DOWNLOAD_PATH']):
+    pre_config['DOWNLOAD_PATH'] = pre_config['DAFAULT_PATH']
+
+config_bkp_path = os.path.join(pre_config['UTILITIES_PATH'], 'config.bkp')
+
 # If config.json exists, read it
 if os.path.exists(config_path):
-    with open(config_path, 'r') as file:
-        config = json.load(file)
+    if os.path.getsize(config_path) > 100:
+        with open(config_path, 'r') as file:
+            config = json.load(file)
+            shutil.copyfile(config_path, config_bkp_path)
 
-    if not config.get('QUESTION_BYPASS'):
-        config['QUESTION_BYPASS'] = False
+        if not config.get('QUESTION_BYPASS'):
+            config['QUESTION_BYPASS'] = False
+    else:
+        if os.path.exists(config_bkp_path):
+            if os.path.getsize(config_bkp_path) > 100:
+                shutil.copyfile(config_bkp_path, config_path)
+                with open(config_path, 'r') as file:
+                    config = json.load(file)
+
+                if not config.get('QUESTION_BYPASS'):
+                    config['QUESTION_BYPASS'] = False
+
+            else:
+                config = pre_config.copy()
+        else:
+            config = pre_config.copy()
 
 else:
-    config = {
-        'URL_UTILITIES_UPDATE':
-            ['https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe',
-             'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip'],
-        'DAFAULT_PATH': os.getcwd(),
-        'UTILITIES_PATH': '',
-        'DOWNLOAD_PATH': os.path.join(os.getenv('userprofile'), 'Downloads'),
-        'SPONSORBLOCK_REMOVE_LIST': ['sponsor', 'selfpromo'],
-        'YTDLP_PATH': '',
-        'QUESTION_BYPASS': False
-    }
-
-    config['UTILITIES_PATH'] = os.path.join(config['DAFAULT_PATH'], 'utilities')
-    config['YTDLP_PATH'] = os.path.join(config['UTILITIES_PATH'], 'yt-dlp.exe')
-
-    if not os.path.exists(config['DOWNLOAD_PATH']):
-        config['DOWNLOAD_PATH'] = config['DAFAULT_PATH']
+    config = pre_config.copy()
 
 
 def progress(uploaded, chunk, total):
@@ -242,6 +263,7 @@ def main():
         f'{ytdlp_path}',
         f'-P "{download_path}"',
         f'--continue',
+        f'--retries 100',
         f'--retry-sleep 5',
         f'--ffmpeg-location "{utilities_path}"',
         f'--no-mtime',
@@ -274,6 +296,7 @@ def main():
 
     except Exception as err:
         input(str(err))
+        exit(0)
 
     if not config['QUESTION_BYPASS']:
         prompt = ("\nSkip all the questions next time?"
