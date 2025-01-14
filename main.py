@@ -275,6 +275,12 @@ def main():
         sponsorblock_answer = input('\nRemove sponsored embeds from videos '
                                     'based on SponsorBlock base? n/[Y]: ') or 'y'
 
+
+    # Checking that cookies.txt is located in the utilities directory in the working folder
+    if os.path.exists(os.path.join(utilities_path, 'cookies.txt')):
+        ytdlp_key_list.append(f'--cookies {os.path.join(utilities_path, 'cookies.txt')}')
+
+
     if sponsorblock_answer == 'y':
         sponsorblock_remove = ','.join(config['SPONSORBLOCK_REMOVE_LIST'])
 

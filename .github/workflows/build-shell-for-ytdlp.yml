@@ -55,7 +55,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "Adding VirusTotal report to release notes"
-          echo "VirusTotal Report (Executable): ${{ steps.virustotal_scan_executable.outputs.analysis }}" >> release_notes.txt
-          echo "VirusTotal Report (Source): ${{ steps.virustotal_scan_source.outputs.analysis }}" >> release_notes.txt
-          gh release create "v0.1.4" dist/shell-for-ytdlp.exe --draft --generate-notes --title "Version v0.1.4" --notes-file release_notes.txt
+          echo "#### VirusTotal Report"
+          echo "- [shell-for-ytdlp.exe](${{ steps.virustotal_scan_executable.outputs.analysis }})" >> release_notes.txt
+          echo "- [main.py](${{ steps.virustotal_scan_source.outputs.analysis }})" >> release_notes.txt
+          gh release create "v0.1.5" dist/shell-for-ytdlp.exe --draft --generate-notes --title "Version v0.1.5" --notes-file release_notes.txt

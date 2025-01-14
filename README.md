@@ -8,6 +8,7 @@
 - Download playlist from youtube
 - Automatic removal of sponsored inserts based on SponsorBlock database
 - Continuation of the interrupted download (same link must be specified again)
+- Cookies
 
 #### Usage:
 - Download [lasted executable file](https://github.com/Jawerka/shell-for-ytdlp/releases/latest/download/shell-for-ytdlp.exe)
@@ -15,6 +16,10 @@
 - Run
 - At the first startup, ``ytdlp`` and ``ffmpeg`` will be loaded into the ``./utilites`` folder.
 - After the first successful download, your settings will be written to the ``config.json`` file.
+
+#### Cookies
+To retrieve cookies from your browser, you can use the extensions [Get cookies.txt LOCALLY](https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) for Chrome or [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/) for Firefox.
+Place the resulting `cookies.txt` in the `utilities` folder, the script will start using it automatically.
 
 #### Using the script
 #### Requirements:
