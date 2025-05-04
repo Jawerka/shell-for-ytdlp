@@ -42,6 +42,7 @@ jobs:
           vt_api_key: ${{ secrets.VIRUSTOTAL_API }}
           files: |
             dist/shell-for-ytdlp.exe
+          check_existing: true
 
       - name: Scan Source File with VirusTotal
         id: virustotal_scan_source
@@ -50,6 +51,7 @@ jobs:
           vt_api_key: ${{ secrets.VIRUSTOTAL_API }}
           files: |
             main.py
+          check_existing: true
 
       - name: Create Draft Release
         env:
@@ -58,4 +60,4 @@ jobs:
           echo "#### VirusTotal Report" >> release_notes.txt
           echo "- [shell-for-ytdlp.exe](${{ steps.virustotal_scan_executable.outputs.analysis }})" >> release_notes.txt
           echo "- [main.py](${{ steps.virustotal_scan_source.outputs.analysis }})" >> release_notes.txt
-          gh release create "v0.1.5" dist/shell-for-ytdlp.exe --draft --generate-notes --title "Version v0.1.5" --notes-file release_notes.txt
+          gh release create "v0.1.6" dist/shell-for-ytdlp.exe --draft --generate-notes --title "Version v0.1.6" --notes-file release_notes.txt

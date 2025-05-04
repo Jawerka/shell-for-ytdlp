@@ -16,7 +16,8 @@ yes_answers = ['y', 'yes', 'д', 'да']
 pre_config = {
     'URL_UTILITIES_UPDATE':
         ['https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe',
-         'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip'],
+         'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/' +
+         'ffmpeg-master-latest-win64-gpl.zip'],
     'DAFAULT_PATH': os.getcwd(),
     'UTILITIES_PATH': '',
     'DOWNLOAD_PATH': os.path.join(os.getenv('userprofile'), 'Downloads'),
@@ -69,6 +70,17 @@ def progress(uploaded, chunk, total):
           f'{(total / 1048576):7.0f}MB {percent:6.1%}\r', end='')
 
 
+def find_latest_cookies_txt(start_dir):
+    cookies = [
+        os.path.join(root, name)
+        for root, _, files in os.walk(start_dir)
+        for name in files if name.endswith("cookies.txt")
+    ]
+    if not cookies:
+        return None
+    return max(cookies, key=os.path.getmtime)
+
+
 def update_utilities(upd_url: str, work_path: str):
     """
     Function for updating/downloading necessary files
@@ -90,7 +102,8 @@ def update_utilities(upd_url: str, work_path: str):
 
         if os.path.exists(save_path):
             if 'zip' and 'ffmpeg' in save_name:
-                # If it is an archive with FFMPEG, additionally check if ffmpeg.exe is unpacked.
+                # If it is an archive with FFMPEG, additionally check
+                # if ffmpeg.exe is unpacked.
                 for ff_file in ffmpeg_file_list:
                     if not os.path.exists(os.path.join(work_path, ff_file)):
                         unzipping_ffmpeg(save_path, work_path)
@@ -100,7 +113,8 @@ def update_utilities(upd_url: str, work_path: str):
             download_file_size = int(response.getheader('Content-Length').strip())
 
             if os.path.getsize(save_path) != download_file_size:
-                # If the size of the downloaded file is different from the size of the Internet file
+                # If the size of the downloaded file is different from the size
+                # of the Internet file
                 # The downloaded file is deleted and the download is called again
 
                 os.remove(save_path)
@@ -113,7 +127,8 @@ def update_utilities(upd_url: str, work_path: str):
                 if 'zip' and 'ffmpeg' not in save_name:
                     return
 
-                # If it is an archive with FFMPEG, additionally check if ffmpeg.exe is unpacked.
+                # If it is an archive with FFMPEG, additionally check
+                # if ffmpeg.exe is unpacked.
                 if not os.path.exists(os.path.join(work_path, 'ffmpeg.exe')):
                     unzipping_ffmpeg(save_path, work_path)
                 return
@@ -229,13 +244,13 @@ def main():
             try:
                 response = urlopen(possible_url)
                 question = (f'\nIn your clipboard is a link: {possible_url}\n'
-                            f'Press Enter if you want to download it, or enter a different URL: ')
+                            f'Press Enter if you want to download it, or enter '
+                            f'a different URL: ')
             except:
                 possible_url = ''
-                pass
 
         if not config['QUESTION_BYPASS']:
-            input_url = input(question) or possible_url
+            input_url = input(question) or possible_url or ''
         else:
             input_url = possible_url
 
@@ -248,7 +263,7 @@ def main():
             exit(0)
 
         except Exception as err:
-            input(str(err))
+            input(f'\nRuntime Error: {err}')
             exit(0)
 
         break
@@ -275,13 +290,13 @@ def main():
         sponsorblock_answer = input('\nRemove sponsored embeds from videos '
                                     'based on SponsorBlock base? n/[Y]: ') or 'y'
 
+    # Checking that cookies.txt is located in the utilities directory
+    # in the working folder
+    latest_cookie = find_latest_cookies_txt(utilities_path)
+    if latest_cookie:
+        ytdlp_key_list.append(f'--cookies "{latest_cookie}"')
 
-    # Checking that cookies.txt is located in the utilities directory in the working folder
-    if os.path.exists(os.path.join(utilities_path, 'cookies.txt')):
-        ytdlp_key_list.append(f'--cookies {os.path.join(utilities_path, 'cookies.txt')}')
-
-
-    if sponsorblock_answer == 'y':
+    if sponsorblock_answer.lower() in yes_answers:
         sponsorblock_remove = ','.join(config['SPONSORBLOCK_REMOVE_LIST'])
 
         ytdlp_key_list.append(f'--sponsorblock-remove {sponsorblock_remove}')
@@ -301,25 +316,21 @@ def main():
         exit(0)
 
     except Exception as err:
-        input(str(err))
+        input(f'\nRuntime Error: {err}')
         exit(0)
 
     if not config['QUESTION_BYPASS']:
         prompt = ("\nSkip all the questions next time?"
                   "\nThe link will be taken from the clipboard on startup. [N]/y: ")
-
         try:
             answer = inputimeout(prompt=prompt, timeout=10)
         except TimeoutOccurred:
-            answer = False
+            answer = ''
 
-        if answer:
-            if any(str(answer).lower() == x for x in yes_answers):
-                config['QUESTION_BYPASS'] = True
-                print(f'\nConfiguration will be written to {config_path}')
-                time.sleep(5)
-            else:
-                config['QUESTION_BYPASS'] = False
+        if str(answer).lower() in yes_answers:
+            config['QUESTION_BYPASS'] = True
+            print(f'\nConfiguration will be written to {config_path}')
+            time.sleep(5)
         else:
             config['QUESTION_BYPASS'] = False
 

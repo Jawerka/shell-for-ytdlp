@@ -40,7 +40,6 @@ pip install -r requirements.txt
 - Select Open Power Shell\CMD here.
 - [Install pip](https://pip.pypa.io/en/stable/installation/)
 ```
-pip install pyinstaller
 python -m venv venv
 venv/Scripts/activate
 python -m pip install -r requirements.txt --no-cache-dir
