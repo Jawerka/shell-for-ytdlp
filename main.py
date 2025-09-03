@@ -6,6 +6,7 @@ import time
 import pyperclip
 from urllib.request import urlopen
 from urllib.request import urlretrieve
+from urllib.error import HTTPError, URLError
 from zipfile import ZipFile
 from inputimeout import inputimeout, TimeoutOccurred
 
@@ -255,15 +256,25 @@ def main():
             input_url = possible_url
 
         # Availability check
+        # If the server responds in one way or another,
+        # we assume that the server is available and pass the link to ytdpl
         try:
             response = urlopen(input_url)
+            response.close()
+
+        except HTTPError as err:
+            err.close()
+
+        except (URLError, ValueError) as err:
+            input(f'\nRuntime Error: {err}')
+            exit(0)
 
         except KeyboardInterrupt:
             input('\nKeyboard Interrupt')
             exit(0)
 
         except Exception as err:
-            input(f'\nRuntime Error: {err}')
+            input(f'\nUnexpected Error: {err}')
             exit(0)
 
         break
