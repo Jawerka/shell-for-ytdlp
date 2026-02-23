@@ -24,16 +24,17 @@ class LogLevel(Enum):
 class GUILogger:
     """
     Логгер для GUI приложения.
-    
+
     Сохраняет историю логов и предоставляет callback для отображения.
     """
-    
+
+    # Все сообщения одного цвета (светло-серый как в терминале)
     COLORS = {
-        LogLevel.INFO: '#9AA0A6',
-        LogLevel.SUCCESS: '#4CAF50',
-        LogLevel.WARNING: '#FFC107',
-        LogLevel.ERROR: '#F44336',
-        LogLevel.DEBUG: '#607D8B',
+        LogLevel.INFO: '#c0caf5',
+        LogLevel.SUCCESS: '#c0caf5',
+        LogLevel.WARNING: '#c0caf5',
+        LogLevel.ERROR: '#c0caf5',
+        LogLevel.DEBUG: '#c0caf5',
     }
     
     def __init__(self, callback: Optional[Callable[[str, LogLevel], None]] = None):

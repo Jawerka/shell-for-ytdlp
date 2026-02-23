@@ -5,3 +5,4 @@ Pillow>=10.0.0
 darkdetect>=0.8.0
 pyinstaller>=6.0.0
 plyer>=2.1.0
+pytest>=7.0.0
