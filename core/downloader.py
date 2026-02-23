@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import logging
+import shlex
 from typing import Callable, Optional, Tuple, List
 
 from .config import ConfigManager
