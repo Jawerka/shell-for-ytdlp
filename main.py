@@ -61,6 +61,7 @@ if hasattr(sys, '_MEIPASS'):
     # Запуск из exe
     _MEIPASS_PATH = sys._MEIPASS
     os.chdir(os.path.dirname(sys.executable))
+    project_root = os.path.dirname(sys.executable)
     print(f"[DEBUG] PyInstaller mode: {_MEIPASS_PATH}", file=sys.stdout)
 else:
     # Запуск из исходного кода

@@ -343,16 +343,18 @@ class MainWindow(ctk.CTk):
         self._download_thread(url)
 
     def _update_utilities(self) -> None:
-        """Обновить утилиты в отдельном потоке."""
+        """Обновить утилиты в отдельном потоке.
+        Обновляется только yt-dlp, ffmpeg не обновляется если существует.
+        """
         logger.debug("_update_utilities: Начало")
-        
+
         self.after(0, lambda: self.log_viewer.info("Проверка обновлений утилит..."))
-        
+
         urls = self.config_manager.get('URL_UTILITIES_UPDATE', [])
         utilities_path = self.config_manager.get('UTILITIES_PATH', '')
-        
+
         updated_count = 0
-        
+
         def progress_callback(filename: str, uploaded: int, total: int):
             percent = (uploaded / total * 100) if total > 0 else 0
             size_uploaded = uploaded // 1024 // 1024
@@ -370,20 +372,26 @@ class MainWindow(ctk.CTk):
             for url in urls:
                 if not self.is_downloading:  # Проверка отмены
                     break
-                    
+
                 save_name = os.path.basename(url)
                 logger.debug(f"_update_utilities: Проверка {save_name}")
-                
+
                 # Быстрая проверка по размеру
                 from core.updater import check_needs_update
                 save_path = os.path.join(utilities_path, save_name)
-                
+
+                # ffmpeg не обновляем если существует
+                if 'ffmpeg' in save_name.lower() and os.path.exists(save_path):
+                    logger.debug(f"_update_utilities: {save_name} существует, пропускаем")
+                    self.after(0, lambda sn=save_name: self.log_viewer.success(f"{sn} актуален"))
+                    continue
+
                 if check_needs_update(url, save_path):
                     self.after(0, lambda: self.log_viewer.info(f"Загрузка {save_name}..."))
-                    
+
                     def _progress_wrapper(uploaded, total, fn=save_name):
                         progress_callback(fn, uploaded, total)
-                    
+
                     from core.updater import update_utilities
                     if update_utilities(url, utilities_path, _progress_wrapper):
                         updated_count += 1
