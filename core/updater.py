@@ -121,9 +121,11 @@ def update_utilities(
     Returns:
         True если файл был скачан/обновлён
     """
+    ffmpeg_file_list = ['ffmpeg.exe', 'ffplay.exe', 'ffprobe.exe']
+
     save_name = os.path.basename(upd_url)
     save_path = os.path.join(work_path, save_name)
-    
+
     logger.debug(f"update_utilities: Начало для {save_name}")
 
     try:
@@ -136,7 +138,24 @@ def update_utilities(
         if os.path.exists(save_path):
             local_size = os.path.getsize(save_path)
             logger.debug(f"update_utilities: Локальный размер: {local_size:,} байт")
-            
+
+            # Если это ffmpeg — проверяем наличие unpacked файлов
+            if 'zip' in save_name and 'ffmpeg' in save_name:
+                # Проверяем, распакован ли ffmpeg
+                ffmpeg_exists = any(
+                    os.path.exists(os.path.join(work_path, ff_file))
+                    for ff_file in ffmpeg_file_list
+                )
+                if ffmpeg_exists:
+                    logger.debug(f"update_utilities: ffmpeg уже распакован, пропускаем")
+                    return False
+                else:
+                    logger.debug(f"update_utilities: ffmpeg архив найден, но не распакован")
+                    # Архив есть, но не распакован — распаковываем
+                    unzipping_ffmpeg(save_path, work_path)
+                    return True
+
+            # Для yt-dlp — проверяем размер
             if local_size == download_file_size:
                 logger.debug(f"update_utilities: {save_name} актуален, пропускаем")
                 return False

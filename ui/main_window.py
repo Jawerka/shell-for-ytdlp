@@ -421,15 +421,20 @@ class MainWindow(ctk.CTk):
                 save_name = os.path.basename(url)
                 logger.debug(f"_update_utilities: Проверка {save_name}")
 
-                # Быстрая проверка по размеру
                 from core.updater import check_needs_update
                 save_path = os.path.join(utilities_path, save_name)
 
-                # ffmpeg не обновляем если существует
-                if 'ffmpeg' in save_name.lower() and os.path.exists(save_path):
-                    logger.debug(f"_update_utilities: {save_name} существует, пропускаем")
-                    self.after(0, lambda sn=save_name: self.log_viewer.success(f"{sn} актуален"))
-                    continue
+                # ffmpeg не обновляем если файлы уже распакованы
+                if 'ffmpeg' in save_name.lower():
+                    ffmpeg_file_list = ['ffmpeg.exe', 'ffplay.exe', 'ffprobe.exe']
+                    ffmpeg_exists = any(
+                        os.path.exists(os.path.join(utilities_path, ff_file))
+                        for ff_file in ffmpeg_file_list
+                    )
+                    if ffmpeg_exists:
+                        logger.debug(f"_update_utilities: ffmpeg уже распакован, пропускаем")
+                        self.after(0, lambda sn=save_name: self.log_viewer.success(f"{sn} актуален"))
+                        continue
 
                 if check_needs_update(url, save_path):
                     self.after(0, lambda: self.log_viewer.info(f"Загрузка {save_name}..."))
@@ -446,16 +451,16 @@ class MainWindow(ctk.CTk):
                 else:
                     logger.debug(f"_update_utilities: {save_name} актуален")
                     self.after(0, lambda: self.log_viewer.success(f"{save_name} актуален"))
-            
+
             if updated_count > 0:
                 self.after(0, lambda: self.log_viewer.success(f"Обновлено утилит: {updated_count}"))
             else:
                 self.after(0, lambda: self.log_viewer.success("Утилиты актуальны"))
-                
+
         except Exception as e:
             logger.error(f"_update_utilities: Ошибка: {e}", exc_info=True)
             self.after(0, lambda: self.log_viewer.warning(f"Ошибка обновления: {e}"))
-        
+
         # Сброс прогресс-бара после обновления
         self.after(0, lambda: self.progress_bar.reset())
         logger.debug("_update_utilities: Завершено")
