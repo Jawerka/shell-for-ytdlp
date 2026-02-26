@@ -28,13 +28,14 @@ from ui.components.url_input import UrlInput
 from ui.components.log_viewer import LogViewer
 from ui.components.progress_bar import ProgressBarWithText
 from ui.components.sponsorblock_dialog import SponsorBlockDialog
+from ui.tooltip import create_tooltip
 from ui.layout_config import (
     BTN_SIZE, BTN_FONT_SIZE,
     TEXT_FONT_SIZE,
     CARD_PADX, CARD_PADY,
     ELEMENT_GAP, ELEMENT_PADX, ELEMENT_PADY,
     CORNER_RADIUS,
-    URL_WIDTH,
+    URL_WIDTH, PATH_WIDTH, PATH_HEIGHT,
     WINDOW_PADX, WINDOW_PADY,
     BUTTON_GAP,
 )
@@ -60,6 +61,7 @@ class MainWindow(ctk.CTk):
         self._setup_window()
         self._create_ui()
         self._setup_hotkeys()
+        self._init_path_label()
 
         self.after(500, self._check_clipboard_and_download)
 
@@ -69,6 +71,12 @@ class MainWindow(ctk.CTk):
         self.minsize(740, 520)
         self.configure(fg_color=COLOR_THEME["bg_primary"])
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
+
+    def _init_path_label(self) -> None:
+        """Инициализировать поле пути загрузки."""
+        saved_path = self.config_manager.get('DOWNLOAD_PATH', '')
+        if saved_path:
+            self.path_label.configure(text=saved_path, text_color=COLOR_THEME["text_primary"])
 
     def _create_ui(self) -> None:
         """Создать пользовательский интерфейс с едиными отступами."""
@@ -123,6 +131,7 @@ class MainWindow(ctk.CTk):
             **btn_kwargs
         )
         self.paste_button.pack(side="left", padx=(0, BUTTON_GAP))
+        create_tooltip(self.paste_button, "Вставить URL из буфера обмена (Ctrl+V)", delay=3000)
 
         # Кнопка очистки (новая)
         self.clear_button = ctk.CTkButton(
@@ -134,6 +143,7 @@ class MainWindow(ctk.CTk):
             **btn_kwargs
         )
         self.clear_button.pack(side="left", padx=(0, BUTTON_GAP))
+        create_tooltip(self.clear_button, "Очистить URL, логи и прогресс", delay=3000)
 
         self.folder_button = ctk.CTkButton(
             buttons_frame,
@@ -144,6 +154,7 @@ class MainWindow(ctk.CTk):
             **btn_kwargs
         )
         self.folder_button.pack(side="left", padx=(0, BUTTON_GAP))
+        create_tooltip(self.folder_button, "Выбрать папку для загрузки (Ctrl+O)", delay=3000)
 
         self.sponsorblock_button = ctk.CTkButton(
             buttons_frame,
@@ -154,6 +165,7 @@ class MainWindow(ctk.CTk):
             **btn_kwargs
         )
         self.sponsorblock_button.pack(side="left", padx=(0, BUTTON_GAP))
+        create_tooltip(self.sponsorblock_button, "Настройки SponsorBlock (пропуск рекламы)", delay=3000)
 
         self.download_button = ctk.CTkButton(
             buttons_frame,
@@ -164,6 +176,24 @@ class MainWindow(ctk.CTk):
             **btn_kwargs
         )
         self.download_button.pack(side="left")
+        create_tooltip(self.download_button, "Начать загрузку (Ctrl+Enter)", delay=3000)
+
+        # Поле пути загрузки
+        self.path_label = ctk.CTkLabel(
+            self.main_frame,
+            text="Выберите папку для загрузки",
+            font=ctk.CTkFont(size=TEXT_FONT_SIZE),
+            text_color=COLOR_THEME["text_muted"],
+            height=PATH_HEIGHT,
+            corner_radius=CORNER_RADIUS,
+            fg_color=COLOR_THEME["bg_card"],
+            anchor="center"
+        )
+        self.path_label.pack(fill="x", padx=0, pady=(0, ELEMENT_GAP))
+        create_tooltip(self.path_label, "Текущая папка для загрузок. Нажмите 📂 для изменения", delay=3000)
+
+        # Подсветка поля пути при наведении
+        self._setup_path_hover()
 
         # Контент: лог + прогресс
         content = ctk.CTkFrame(self.main_frame, fg_color="transparent")
@@ -246,6 +276,7 @@ class MainWindow(ctk.CTk):
         if folder:
             self.config_manager.set('DOWNLOAD_PATH', folder)
             self.config_manager.save()
+            self.path_label.configure(text=folder, text_color=COLOR_THEME["text_primary"])
             self.log_viewer.success(f"Папка загрузки: {folder}")
     
     def _open_sponsorblock_settings(self) -> None:
@@ -262,6 +293,20 @@ class MainWindow(ctk.CTk):
 
         dialog = SponsorBlockDialog(self, current_categories, on_save)
         dialog.focus()
+
+    def _setup_path_hover(self) -> None:
+        """Настроить hover-эффект для поля пути."""
+        normal_color = COLOR_THEME["bg_card"]
+        hover_color = COLOR_THEME["bg_secondary"]
+
+        def on_enter(event):
+            self.path_label.configure(fg_color=hover_color)
+
+        def on_leave(event):
+            self.path_label.configure(fg_color=normal_color)
+
+        self.path_label.bind("<Enter>", on_enter)
+        self.path_label.bind("<Leave>", on_leave)
 
     def _validate_and_prepare_url(self, url: str) -> Tuple[bool, str]:
         """
