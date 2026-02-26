@@ -30,6 +30,8 @@ class YouTubeDownloader:
         '--no-mtime',
         '--windows-filenames',
         '--concurrent-fragments', '8',
+        # Лучшее качество видео и аудио
+        '-f', 'bestvideo+bestaudio/best',
     ]
 
     def __init__(
@@ -64,7 +66,50 @@ class YouTubeDownloader:
         """Внутренний метод обновления прогресса."""
         if self.progress_callback:
             self.progress_callback(percent, info)
-    
+
+    def _ensure_ffmpeg(self) -> bool:
+        """
+        Проверить наличие ffmpeg и загрузить при необходимости.
+
+        Returns:
+            True если ffmpeg доступен
+        """
+        utilities_path = self.config.get('UTILITIES_PATH', '')
+        ffmpeg_path = os.path.join(utilities_path, 'ffmpeg.exe')
+
+        if os.path.exists(ffmpeg_path):
+            logger.debug(f"_ensure_ffmpeg: ffmpeg найден: {ffmpeg_path}")
+            return True
+
+        logger.warning(f"_ensure_ffmpeg: ffmpeg не найден, загрузка...")
+        self._log("⚠️ ffmpeg не найден. Загрузка ffmpeg...", 'warning')
+
+        # URL для загрузки ffmpeg
+        ffmpeg_url = 'https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip'
+
+        try:
+            # Локальный импорт для избежания циклической зависимости
+            from .updater import update_utilities
+
+            # Загрузка ffmpeg
+            def progress_callback(filename: str, uploaded: int, total: int):
+                percent = (uploaded / total * 100) if total > 0 else 0
+                self._log(f"Загрузка ffmpeg: {percent:.1f}%")
+
+            if update_utilities(ffmpeg_url, utilities_path, progress_callback):
+                logger.debug("_ensure_ffmpeg: ffmpeg загружен успешно")
+                self._log("✅ ffmpeg загружен", 'success')
+                return True
+            else:
+                logger.error("_ensure_ffmpeg: Ошибка загрузки ffmpeg")
+                self._log("❌ Ошибка загрузки ffmpeg", 'error')
+                return False
+
+        except Exception as e:
+            logger.error(f"_ensure_ffmpeg: Исключение: {e}", exc_info=True)
+            self._log(f"❌ Ошибка загрузки ffmpeg: {e}", 'error')
+            return False
+
     def _build_command(self, url: str, download_path: str) -> List[str]:
         """
         Построить команду для yt-dlp.
@@ -92,13 +137,25 @@ class YouTubeDownloader:
                 return f'"{path}"'
             return path
 
+        # Проверка и загрузка ffmpeg при необходимости
+        self._ensure_ffmpeg()
+
         # Всегда используем лучшее качество видео и аудио
         cmd = [
             ytdlp_path,
             '-P', quote_path(download_path),
             *self.YTDLP_OPTIONS,
-            '--ffmpeg-location', quote_path(utilities_path),
         ]
+
+        # Проверка наличия ffmpeg перед добавлением --ffmpeg-location
+        ffmpeg_path = os.path.join(utilities_path, 'ffmpeg.exe')
+        if os.path.exists(ffmpeg_path):
+            logger.debug(f"_build_command: ffmpeg найден: {ffmpeg_path}")
+            cmd.append('--ffmpeg-location')
+            cmd.append(quote_path(ffmpeg_path))
+        else:
+            logger.warning(f"_build_command: ffmpeg не найден по пути {ffmpeg_path}")
+            self._log("⚠️ ffmpeg не найден. Некоторые форматы могут быть недоступны.", 'warning')
 
         logger.debug(f"_build_command: Базовая команда: {len(cmd)} аргументов")
 
