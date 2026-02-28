@@ -1,0 +1,129 @@
+# -*- coding: utf-8 -*-
+"""
+CI/CD workflow для автоматической сборки UI-for-ytdlp.
+
+Сборка происходит при:
+- Пуше в ветку main
+- Создании тега версии (v*)
+- Ручном запуске через GitHub Actions
+"""
+
+name: Build UI-for-ytdlp
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Версия для сборки (например, 2.1.0)'
+        required: false
+        default: 'dev'
+
+env:
+  PYTHON_VERSION: '3.10'
+  APP_NAME: UI-for-ytdlp
+
+jobs:
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Setup Python virtual environment
+        run: |
+          python -m venv venv
+          .\venv\Scripts\Activate.ps1
+
+      - name: Install dependencies
+        run: |
+          .\venv\Scripts\Activate.ps1
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build with PyInstaller
+        run: |
+          .\venv\Scripts\Activate.ps1
+          python -m PyInstaller --clean --noconfirm UI-for-ytdlp.spec
+
+      - name: Verify build
+        run: |
+          if (-not (Test-Path "dist\${{ env.APP_NAME }}.exe")) {
+            Write-Error "Build failed: EXE file not found"
+            exit 1
+          }
+          $fileSize = (Get-Item "dist\${{ env.APP_NAME }}.exe").Length / 1MB
+          Write-Host "Build successful! File size: $([math]::Round($fileSize, 2)) MB"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-windows
+          path: dist/${{ env.APP_NAME }}.exe
+          retention-days: 30
+
+  build-release:
+    name: Create Release
+    needs: [build-windows]
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-windows
+          path: dist/
+
+      - name: Create ZIP archive
+        run: |
+          Compress-Archive -Path "dist\${{ env.APP_NAME }}.exe" -DestinationPath "${{ env.APP_NAME }}-${{ github.ref_name }}.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: ${{ env.APP_NAME }}-${{ github.ref_name }}.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+  test-build:
+    name: Test Build
+    needs: [build-windows]
+    runs-on: windows-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-windows
+          path: dist/
+
+      - name: Verify EXE file
+        run: |
+          if (-not (Test-Path "dist\${{ env.APP_NAME }}.exe")) {
+            Write-Error "Test failed: EXE file not found"
+            exit 1
+          }
+          Write-Host "Test passed: EXE file exists"
