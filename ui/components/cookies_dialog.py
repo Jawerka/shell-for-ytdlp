@@ -30,8 +30,8 @@ class CookiesDialog(ctk.CTkToplevel):
         self.on_save_callback = on_save
 
         self.title("Настройка cookies.txt")
-        self.geometry("520x380")
-        self.minsize(480, 350)
+        self.geometry("540x350")
+        self.minsize(540, 350)
         self.transient(parent)
         self.grab_set()
         self.configure(fg_color=COLOR_THEME["bg_primary"])
@@ -74,7 +74,7 @@ class CookiesDialog(ctk.CTkToplevel):
         # Заголовок
         title_label = ctk.CTkLabel(
             card,
-            text="Выберите файл cookies.txt для доступа к премиум-контенту",
+            text="Выберите файл cookies.txt",
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=COLOR_THEME["text_primary"],
             wraplength=460,
@@ -108,7 +108,7 @@ class CookiesDialog(ctk.CTkToplevel):
         browse_btn = ctk.CTkButton(
             path_frame,
             text=browse_icon,
-            width=50,
+            width=42,
             height=40,
             command=self._browse_file,
             fg_color=COLOR_THEME["accent"],
@@ -150,7 +150,7 @@ class CookiesDialog(ctk.CTkToplevel):
             clear_btn = ctk.CTkButton(
                 buttons_frame,
                 text=clear_icon + " Очистить",
-                width=120,
+                width=70,
                 height=40,
                 command=self._clear_path,
                 fg_color=COLOR_THEME["bg_card"],
@@ -169,7 +169,7 @@ class CookiesDialog(ctk.CTkToplevel):
         cancel_btn = ctk.CTkButton(
             buttons_frame,
             text="Отмена",
-            width=100,
+            width=70,
             height=40,
             command=self.destroy,
             fg_color=COLOR_THEME["bg_card"],
@@ -185,7 +185,7 @@ class CookiesDialog(ctk.CTkToplevel):
         save_btn = ctk.CTkButton(
             buttons_frame,
             text=save_icon + " OK",
-            width=100,
+            width=70,
             height=40,
             command=self._save_and_close,
             fg_color=COLOR_THEME["primary"],

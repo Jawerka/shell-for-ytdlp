@@ -34,8 +34,8 @@ class SponsorBlockDialog(ctk.CTkToplevel):
         self.on_save_callback = on_save
 
         self.title("Настройка SponsorBlock")
-        self.geometry("500x520")
-        self.minsize(480, 420)
+        self.geometry("500x500")
+        self.minsize(500, 500)
         self.transient(parent)
         self.grab_set()
         self.configure(fg_color=COLOR_THEME["bg_primary"])
@@ -131,7 +131,7 @@ class SponsorBlockDialog(ctk.CTkToplevel):
         cancel_btn = ctk.CTkButton(
             buttons_frame,
             text="Отмена",
-            width=100,
+            width=70,
             height=40,
             command=self.destroy,
             fg_color=COLOR_THEME["bg_card"],
@@ -146,7 +146,7 @@ class SponsorBlockDialog(ctk.CTkToplevel):
         save_btn = ctk.CTkButton(
             buttons_frame,
             text=save_icon,
-            width=40,
+            width=42,
             height=40,
             command=self._save_and_close,
             fg_color=COLOR_THEME["primary"],

@@ -31,7 +31,7 @@ from ui.components.sponsorblock_dialog import SponsorBlockDialog
 from ui.components.cookies_dialog import CookiesDialog
 from ui.tooltip import create_tooltip
 from ui.layout_config import (
-    BTN_SIZE, BTN_FONT_SIZE,
+    BTN_SIZE_W, BTN_SIZE_H, BTN_FONT_SIZE,
     TEXT_FONT_SIZE,
     CARD_PADX, CARD_PADY,
     ELEMENT_GAP, ELEMENT_PADX, ELEMENT_PADY,
@@ -104,7 +104,7 @@ class MainWindow(ctk.CTk):
             fg_color=COLOR_THEME["bg_card"],
             corner_radius=CORNER_RADIUS,
             border_width=0,
-            height=BTN_SIZE + ELEMENT_PADY * 2
+            height=BTN_SIZE_H + ELEMENT_PADY * 2
         )
         header_card.pack(fill="x", padx=0, pady=(0, ELEMENT_GAP))
 
@@ -117,7 +117,7 @@ class MainWindow(ctk.CTk):
             header_inner,
             on_paste=self._on_url_paste,
             entry_width=URL_WIDTH,
-            entry_height=BTN_SIZE,
+            entry_height=BTN_SIZE_H,
             corner_radius=CORNER_RADIUS
         )
         self.url_input.pack(side="left", fill="x", expand=True)
@@ -127,8 +127,8 @@ class MainWindow(ctk.CTk):
         buttons_frame.pack(side="right", padx=(ELEMENT_GAP, 0))
 
         btn_kwargs = {
-            "width": BTN_SIZE,
-            "height": BTN_SIZE,
+            "width": BTN_SIZE_W,
+            "height": BTN_SIZE_H,
             "corner_radius": CORNER_RADIUS,
             "text_color": COLOR_THEME["text_primary"],
             "font": ctk.CTkFont(size=BTN_FONT_SIZE),
@@ -250,7 +250,7 @@ class MainWindow(ctk.CTk):
         # Progress bar (на всю ширину карточки, отступы только у полоски)
         self.progress_bar = ProgressBarWithText(
             content,
-            bar_height=BTN_SIZE,
+            bar_height=BTN_SIZE_H,
             font_size=TEXT_FONT_SIZE,
             corner_radius=CORNER_RADIUS
         )
