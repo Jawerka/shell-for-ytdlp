@@ -45,8 +45,8 @@ class SettingsDialog(ctk.CTkToplevel):
         self.on_save_callback = on_save
 
         self.title("Настройки")
-        self.geometry("600x550")
-        self.minsize(600, 550)
+        self.geometry("620x550")
+        self.minsize(620, 550)
         self.transient(parent)
         self.grab_set()
         self.configure(fg_color=COLOR_THEME["bg_primary"])
@@ -123,27 +123,29 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         cookies_title.pack(fill="x", pady=(0, Spacing.SM))
 
+        # Описание и help-ссылка в одной строке
+        desc_frame = ctk.CTkFrame(cookies_section, fg_color="transparent")
+        desc_frame.pack(fill="x", pady=(0, Spacing.SM))
+
         cookies_desc = ctk.CTkLabel(
-            cookies_section,
-            text="Файл cookies.txt позволяет скачивать приватные видео и контент по подписке",
+            desc_frame,
+            text="Файл cookies.txt позволяет скачивать приватные видео и контент по подписке ",
             font=ctk.CTkFont(size=12),
             text_color=COLOR_THEME["text_muted"],
-            wraplength=560,
-            justify="left",
             anchor="w"
         )
-        cookies_desc.pack(fill="x", pady=(0, Spacing.XS))
+        cookies_desc.pack(side="left")
 
         # Интерактивная ссылка на документацию
         help_label = ctk.CTkLabel(
-            cookies_section,
+            desc_frame,
             text="(help)",
             font=ctk.CTkFont(size=12, underline=True),
             text_color=COLOR_THEME["primary"],
             cursor="hand2",
             anchor="w"
         )
-        help_label.pack(fill="x", pady=(0, Spacing.SM))
+        help_label.pack(side="left")
         
         # Открытие ссылки при клике
         def _open_help(event=None):
