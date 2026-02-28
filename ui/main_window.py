@@ -23,6 +23,7 @@ from core.utils import get_clipboard_url, validate_url_for_ui, find_cookies_in_u
 from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
 from core.notifications import send_download_complete, send_download_error
+from core.deno_installer import ensure_deno_exists
 
 from ui.components.url_input import UrlInput
 from ui.components.log_viewer import LogViewer
@@ -497,6 +498,18 @@ class MainWindow(ctk.CTk):
         logger.debug("_update_utilities: Начало")
 
         self.after(0, lambda: self.log_viewer.info("Проверка обновлений утилит..."))
+
+        # Проверка и установка deno (JavaScript runtime для YouTube)
+        utilities_path = self.config_manager.get('UTILITIES_PATH', '')
+        if utilities_path:
+            self.after(0, lambda: self.log_viewer.info("Проверка JavaScript runtime (deno)..."))
+            if not ensure_deno_exists(utilities_path, lambda msg: self.after(0, lambda m=msg: self.log_viewer.info(m))):
+                self.after(0, lambda: self.log_viewer.warning(
+                    "deno не установлен. Некоторые форматы YouTube могут быть недоступны.\n"
+                    "Скачайте с https://github.com/denoland/deno/releases/latest"
+                ))
+            else:
+                self.after(0, lambda: self.log_viewer.success("JavaScript runtime (deno) готов"))
 
         urls = self.config_manager.get('URL_UTILITIES_UPDATE', [])
         utilities_path = self.config_manager.get('UTILITIES_PATH', '')

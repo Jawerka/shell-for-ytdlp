@@ -47,6 +47,8 @@ temp
 # Утилиты (скачанные)
 /utilities/*
 !/utilities/.gitkeep
+!/utilities/yt-dlp.exe
+!/utilities/ffmpeg.exe
 
 # macOS
 .DS_Store
