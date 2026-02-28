@@ -45,8 +45,8 @@ class SettingsDialog(ctk.CTkToplevel):
         self.on_save_callback = on_save
 
         self.title("Настройки")
-        self.geometry("650x550")
-        self.minsize(600, 500)
+        self.geometry("600x550")
+        self.minsize(600, 550)
         self.transient(parent)
         self.grab_set()
         self.configure(fg_color=COLOR_THEME["bg_primary"])
@@ -102,16 +102,16 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         title_label.pack(pady=(Spacing.LG, Spacing.MD), padx=Spacing.LG, anchor="w")
 
-        # Создаём прокручиваемую область (занимает всё место внутри card)
-        scroll_frame = ctk.CTkScrollableFrame(
+        # Контент без прокрутки (занимает всё место внутри card)
+        content_frame = ctk.CTkFrame(
             card,
             fg_color="transparent",
             corner_radius=COLOR_THEME["radius_md"]
         )
-        scroll_frame.pack(fill="both", expand=True, padx=Spacing.LG, pady=(0, Spacing.MD))
+        content_frame.pack(fill="both", expand=True, padx=Spacing.LG, pady=(0, Spacing.MD))
 
         # === Секция 1: Cookies ===
-        cookies_section = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+        cookies_section = ctk.CTkFrame(content_frame, fg_color="transparent")
         cookies_section.pack(fill="x", pady=(0, Spacing.LG))
 
         cookies_title = ctk.CTkLabel(
@@ -189,11 +189,11 @@ class SettingsDialog(ctk.CTkToplevel):
             clear_btn.pack(side="right", padx=(0, Spacing.SM))
 
         # === Разделитель ===
-        separator = ctk.CTkFrame(scroll_frame, height=2, fg_color=COLOR_THEME["border"])
+        separator = ctk.CTkFrame(content_frame, height=2, fg_color=COLOR_THEME["border"])
         separator.pack(fill="x", pady=Spacing.LG)
 
         # === Секция 2: SponsorBlock ===
-        sponsorblock_section = ctk.CTkFrame(scroll_frame, fg_color="transparent")
+        sponsorblock_section = ctk.CTkFrame(content_frame, fg_color="transparent")
         sponsorblock_section.pack(fill="x", pady=(0, Spacing.LG))
 
         sponsorblock_title = ctk.CTkLabel(
