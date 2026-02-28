@@ -77,14 +77,18 @@ class SettingsDialog(ctk.CTkToplevel):
         self._create_ui()
 
     def _create_ui(self) -> None:
+        # Верхняя часть с кнопками
+        top_frame = ctk.CTkFrame(self, fg_color="transparent")
+        top_frame.pack(fill="x", padx=Spacing.LG, pady=Spacing.LG)
+
         card = ctk.CTkFrame(
-            self,
+            top_frame,
             fg_color=COLOR_THEME["bg_card"],
             corner_radius=COLOR_THEME["radius_lg"],
             border_width=COLOR_THEME.get("border_width", 1),
             border_color=COLOR_THEME.get("border", "#252525")
         )
-        card.pack(fill="both", expand=True, padx=Spacing.LG, pady=Spacing.LG)
+        card.pack(side="left", fill="both", expand=True)
 
         # Заголовок
         title_label = ctk.CTkLabel(
@@ -261,9 +265,9 @@ class SettingsDialog(ctk.CTkToplevel):
             )
             label.pack(side="left", fill="x", expand=True)
 
-        # Кнопки действий (высота: 44px = 40px кнопка + 4px отступы)
-        buttons_frame = ctk.CTkFrame(card, fg_color="transparent")
-        buttons_frame.pack(fill="x", padx=Spacing.LG, pady=(0, Spacing.LG))
+        # Кнопки действий (под карточкой, высота: 40px)
+        buttons_frame = ctk.CTkFrame(self, fg_color="transparent")
+        buttons_frame.pack(fill="x", padx=Spacing.LG, pady=(Spacing.SM, Spacing.LG))
 
         # Пространство
         spacer = ctk.CTkFrame(buttons_frame, fg_color="transparent")
