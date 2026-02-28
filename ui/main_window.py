@@ -28,8 +28,7 @@ from core.deno_installer import ensure_deno_exists
 from ui.components.url_input import UrlInput
 from ui.components.log_viewer import LogViewer
 from ui.components.progress_bar import ProgressBarWithText
-from ui.components.sponsorblock_dialog import SponsorBlockDialog
-from ui.components.cookies_dialog import CookiesDialog
+from ui.components.settings_dialog import SettingsDialog
 from ui.tooltip import create_tooltip
 from ui.layout_config import (
     BTN_SIZE_W, BTN_SIZE_H, BTN_FONT_SIZE,
@@ -55,10 +54,9 @@ class MainWindow(ctk.CTk):
 
         self.icon_download = IconManager.get("download", "⭳")
         self.icon_folder = IconManager.get("folder", "📂")
-        self.icon_sponsorblock = IconManager.get("sponsorblock", "🛡")
+        self.icon_settings = IconManager.get("settings", "⚙")
         self.icon_clear = IconManager.get("clear", "✕")
-        self.icon_paste = IconManager.get("paste", "⧉")
-        self.icon_cookies = IconManager.get("cookies", "🍪")
+        self.icon_paste = IconManager.get("paste", "📋")
 
         setup_theme()
         self._setup_window()
@@ -136,19 +134,7 @@ class MainWindow(ctk.CTk):
             "anchor": "center",
         }
 
-        # Кнопка вставки (теперь такая же как остальные)
-        self.paste_button = ctk.CTkButton(
-            buttons_frame,
-            text=self.icon_paste,
-            command=lambda: self.url_input._paste_from_clipboard(),
-            fg_color=COLOR_THEME["accent"],
-            hover_color=COLOR_THEME["accent_hover"],
-            **btn_kwargs
-        )
-        self.paste_button.pack(side="left", padx=(0, BUTTON_GAP))
-        create_tooltip(self.paste_button, "Вставить URL из буфера обмена (Ctrl+V)", delay=3000)
-
-        # Кнопка очистки (новая)
+        # Кнопка очистки
         self.clear_button = ctk.CTkButton(
             buttons_frame,
             text=self.icon_clear,
@@ -160,6 +146,19 @@ class MainWindow(ctk.CTk):
         self.clear_button.pack(side="left", padx=(0, BUTTON_GAP))
         create_tooltip(self.clear_button, "Очистить URL, логи и прогресс", delay=3000)
 
+        # Кнопка настроек (cookies + SponsorBlock)
+        self.settings_button = ctk.CTkButton(
+            buttons_frame,
+            text=self.icon_settings,
+            command=self._open_settings,
+            fg_color=COLOR_THEME["accent"],
+            hover_color=COLOR_THEME["accent_hover"],
+            **btn_kwargs
+        )
+        self.settings_button.pack(side="left", padx=(0, BUTTON_GAP))
+        create_tooltip(self.settings_button, "Настройки (cookies.txt, SponsorBlock)", delay=3000)
+
+        # Кнопка выбора папки
         self.folder_button = ctk.CTkButton(
             buttons_frame,
             text=self.icon_folder,
@@ -171,29 +170,19 @@ class MainWindow(ctk.CTk):
         self.folder_button.pack(side="left", padx=(0, BUTTON_GAP))
         create_tooltip(self.folder_button, "Выбрать папку для загрузки (Ctrl+O)", delay=3000)
 
-        # Кнопка cookies
-        self.cookies_button = ctk.CTkButton(
+        # Кнопка вставки
+        self.paste_button = ctk.CTkButton(
             buttons_frame,
-            text=self.icon_cookies,
-            command=self._open_cookies_settings,
+            text=self.icon_paste,
+            command=lambda: self.url_input._paste_from_clipboard(),
             fg_color=COLOR_THEME["accent"],
             hover_color=COLOR_THEME["accent_hover"],
             **btn_kwargs
         )
-        self.cookies_button.pack(side="left", padx=(0, BUTTON_GAP))
-        create_tooltip(self.cookies_button, "Настройка cookies.txt (доступ к премиум-контенту)", delay=3000)
+        self.paste_button.pack(side="left", padx=(0, BUTTON_GAP))
+        create_tooltip(self.paste_button, "Вставить URL из буфера обмена (Ctrl+V)", delay=3000)
 
-        self.sponsorblock_button = ctk.CTkButton(
-            buttons_frame,
-            text=self.icon_sponsorblock,
-            command=self._open_sponsorblock_settings,
-            fg_color=COLOR_THEME["accent"],
-            hover_color=COLOR_THEME["accent_hover"],
-            **btn_kwargs
-        )
-        self.sponsorblock_button.pack(side="left", padx=(0, BUTTON_GAP))
-        create_tooltip(self.sponsorblock_button, "Настройки SponsorBlock (пропуск рекламы)", delay=3000)
-
+        # Кнопка загрузки
         self.download_button = ctk.CTkButton(
             buttons_frame,
             text=self.icon_download,
@@ -309,37 +298,34 @@ class MainWindow(ctk.CTk):
             self.path_label.configure(text=folder, text_color=COLOR_THEME["text_primary"])
             self.log_viewer.success(f"Папка загрузки: {normalize_path_for_display(folder)}")
     
-    def _open_sponsorblock_settings(self) -> None:
-        """Открыть настройки SponsorBlock."""
+    def _open_settings(self) -> None:
+        """Открыть объединённые настройки (cookies + SponsorBlock)."""
+        current_cookies_path = self.config_manager.get('COOKIES_PATH', '')
         current_categories = self.config_manager.get('SPONSORBLOCK_REMOVE_LIST', ['sponsor', 'selfpromo'])
 
-        def on_save(categories: List[str]):
+        def on_save(cookies_path: Optional[str], categories: List[str]):
+            # Сохранение cookies path
+            self.config_manager.set('COOKIES_PATH', cookies_path if cookies_path else '')
+            
+            # Сохранение категорий SponsorBlock
             self.config_manager.set('SPONSORBLOCK_REMOVE_LIST', categories)
             self.config_manager.save()
+            
+            # Логи
+            if cookies_path:
+                if os.path.exists(cookies_path):
+                    self.log_viewer.success(f"cookies.txt: {normalize_path_for_display(cookies_path)}")
+                else:
+                    self.log_viewer.warning(f"cookies.txt не найден: {normalize_path_for_display(cookies_path)}")
+            else:
+                self.log_viewer.info("cookies.txt отключен")
+            
             if categories:
                 self.log_viewer.info(f"SponsorBlock: {len(categories)} категорий выбрано")
             else:
                 self.log_viewer.info("SponsorBlock отключен")
 
-        dialog = SponsorBlockDialog(self, current_categories, on_save)
-        dialog.focus()
-
-    def _open_cookies_settings(self) -> None:
-        """Открыть настройки cookies.txt."""
-        current_path = self.config_manager.get('COOKIES_PATH', '')
-
-        def on_save(path: Optional[str]):
-            self.config_manager.set('COOKIES_PATH', path if path else '')
-            self.config_manager.save()
-            if path:
-                if os.path.exists(path):
-                    self.log_viewer.success(f"cookies.txt: {normalize_path_for_display(path)}")
-                else:
-                    self.log_viewer.warning(f"cookies.txt не найден: {normalize_path_for_display(path)}")
-            else:
-                self.log_viewer.info("cookies.txt отключен")
-
-        dialog = CookiesDialog(self, current_path, on_save)
+        dialog = SettingsDialog(self, current_cookies_path, current_categories, on_save)
         dialog.focus()
 
     def _setup_path_hover(self) -> None:
@@ -642,9 +628,9 @@ class MainWindow(ctk.CTk):
         self.bind('<Control-l>', lambda e: self.log_viewer.clear())
         self.bind('<Control-L>', lambda e: self.log_viewer.clear())
 
-        # Ctrl+S — настройки SponsorBlock
-        self.bind('<Control-s>', lambda e: self._open_sponsorblock_settings())
-        self.bind('<Control-S>', lambda e: self._open_sponsorblock_settings())
+        # Ctrl+S — настройки (cookies + SponsorBlock)
+        self.bind('<Control-s>', lambda e: self._open_settings())
+        self.bind('<Control-S>', lambda e: self._open_settings())
 
         # Esc — отмена загрузки
         self.bind('<Escape>', lambda e: self._cancel_download())
