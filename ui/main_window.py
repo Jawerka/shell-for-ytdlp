@@ -4,6 +4,7 @@
 """
 
 import os
+import sys
 import threading
 import socket
 import logging
@@ -13,6 +14,15 @@ import customtkinter as ctk
 from tkinter import filedialog
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
+from PIL import Image
+
+# Определение корневой директории проекта
+if hasattr(sys, '_MEIPASS'):
+    # Запуск из exe
+    project_root = os.path.dirname(sys.executable)
+else:
+    # Запуск из исходного кода
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 logger = logging.getLogger('UI-for-ytdlp.main_window')
 
@@ -73,6 +83,21 @@ class MainWindow(ctk.CTk):
         self.minsize(740, 520)
         self.configure(fg_color=COLOR_THEME["bg_primary"])
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
+
+        # Установка иконки окна
+        try:
+            icon_path = os.path.join(project_root, 'icon.ico')
+            if hasattr(sys, '_MEIPASS'):
+                # Запуск из exe: иконка в папке с исполняемым файлом
+                icon_path = os.path.join(os.path.dirname(sys.executable), 'icon.ico')
+            else:
+                # Запуск из исходного кода: иконка в корне проекта
+                icon_path = os.path.join(project_root, 'icon.ico')
+            if os.path.exists(icon_path):
+                icon_img = ctk.CTkImage(light_image=Image.open(icon_path), size=(32, 32))
+                self.iconphoto(True, icon_img)
+        except Exception as e:
+            logger.warning(f"Не удалось установить иконку окна: {e}")
 
     def _init_path_label(self) -> None:
         """Инициализировать поле пути загрузки."""
