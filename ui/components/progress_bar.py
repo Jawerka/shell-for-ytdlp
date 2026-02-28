@@ -116,12 +116,14 @@ class ProgressBarWithText(ctk.CTkFrame):
         """Обновить прогресс."""
         percent = max(0.0, min(100.0, float(percent)))
 
-        if percent >= 1.0:
+        # Всегда показываем прогресс-бар если есть прогресс
+        if percent > 0.0:
             if not self._bar_visible:
                 self._show_bar()
             self.progress_bar.set(percent / 100.0)
         else:
-            if self._bar_visible:
+            # Скрываем только если процент = 0 и нет текста
+            if not text and self._bar_visible:
                 self._hide_bar()
             try:
                 self.progress_bar.set(0.0)

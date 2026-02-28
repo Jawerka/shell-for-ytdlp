@@ -172,7 +172,7 @@ class YouTubeDownloader:
         percent_match = re.search(percent_pattern, line)
         if percent_match:
             percent = float(percent_match.group(1))
-            
+
             # Размер
             size_info = ""
             size_match = re.search(size_pattern, line)
@@ -181,7 +181,7 @@ class YouTubeDownloader:
                 size_info = f"{percent:.1f}% of {size}"
             else:
                 size_info = f"{percent:.1f}%"
-            
+
             # Скорость
             speed = ""
             speed_match = re.search(speed_pattern, line)
@@ -189,14 +189,20 @@ class YouTubeDownloader:
                 speed_val = speed_match.group(1)
                 speed_unit = speed_match.group(2)
                 speed = f"{speed_val} {speed_unit}/s"
-            
+
             # ETA
             eta = ""
             eta_match = re.search(eta_pattern, line)
             if eta_match:
                 eta = f"ETA: {eta_match.group(1)}"
-            
+
+            logger.debug(f"_parse_progress: line={line[:80]}... percent={percent} size={size_info} speed={speed} eta={eta}")
             return (percent, size_info, speed, eta)
+        
+        # Логирование если строка не распарсена (для отладки)
+        if '[download]' in line or '%' in line:
+            logger.debug(f"_parse_progress: NO MATCH: {line[:80]}...")
+        
         return None
     
     def download(self, url: str) -> bool:

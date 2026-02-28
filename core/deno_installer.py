@@ -54,8 +54,17 @@ def download_deno(utilities_path: str, callback: callable = None) -> bool:
         if callback:
             callback("Загрузка deno (JavaScript runtime)...")
 
-        # Загрузка ZIP-архива
-        urlretrieve(DENO_DOWNLOAD_URL, deno_zip_path)
+        # Загрузка ZIP-архива с прогрессом
+        def _report_hook(count, block_size, total_size):
+            """Обратный вызов для отображения прогресса загрузки."""
+            if total_size > 0:
+                percent = (count * block_size * 100) // total_size
+                downloaded_mb = (count * block_size) // (1024 * 1024)
+                total_mb = total_size // (1024 * 1024)
+                if callback:
+                    callback(f"Загрузка deno: {percent}% ({downloaded_mb}MB / {total_mb}MB)")
+
+        urlretrieve(DENO_DOWNLOAD_URL, deno_zip_path, _report_hook)
 
         if callback:
             callback("Распаковка deno...")

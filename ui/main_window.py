@@ -503,7 +503,19 @@ class MainWindow(ctk.CTk):
         utilities_path = self.config_manager.get('UTILITIES_PATH', '')
         if utilities_path:
             self.after(0, lambda: self.log_viewer.info("Проверка JavaScript runtime (deno)..."))
-            if not ensure_deno_exists(utilities_path, lambda msg: self.after(0, lambda m=msg: self.log_viewer.info(m))):
+            
+            def deno_progress(msg):
+                """Обновление прогресса загрузки deno."""
+                self.after(0, lambda: self.log_viewer.info(msg))
+                # Обновляем прогресс-бар если есть процент
+                if '%' in msg:
+                    try:
+                        percent = float(msg.split('%')[0].split(': ')[1])
+                        self.after(0, lambda p=percent, m=msg: self.progress_bar.update_progress(p, text=m))
+                    except (ValueError, IndexError):
+                        pass
+            
+            if not ensure_deno_exists(utilities_path, deno_progress):
                 self.after(0, lambda: self.log_viewer.warning(
                     "deno не установлен. Некоторые форматы YouTube могут быть недоступны.\n"
                     "Скачайте с https://github.com/denoland/deno/releases/latest"
