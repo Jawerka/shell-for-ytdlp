@@ -207,10 +207,17 @@ def main():
         
         # Установка иконки приложения
         try:
-            app.iconbitmap('icon.ico')  # для Windows
-        except Exception:
+            # Определяем путь к иконке с учётом режима запуска
+            if hasattr(sys, '_MEIPASS'):
+                # Запуск из exe: иконка в папке с исполняемым файлом
+                icon_path = os.path.join(os.path.dirname(sys.executable), 'icon.ico')
+            else:
+                # Запуск из исходного кода: иконка в корне проекта
+                icon_path = os.path.join(project_root, 'icon.ico')
+            app.iconbitmap(icon_path)  # для Windows
+        except Exception as e:
             # Если иконка недоступна, продолжить без нее
-            logger.warning("Не удалось установить иконку приложения")
+            logger.warning(f"Не удалось установить иконку приложения: {e}")
     except Exception as e:
         logger.error(f"Ошибка создания MainWindow: {e}", exc_info=True)
         raise

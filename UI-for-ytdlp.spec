@@ -10,18 +10,22 @@ PyInstaller spec-файл для UI-for-ytdlp.
     dist/UI-for-ytdlp.exe
 """
 
+import os
 from PyInstaller.utils.hooks import collect_data_files
 
 # Базовые настройки
 block_cipher = None
 app_name = 'UI-for-ytdlp'
-icon_path = 'icon.ico'
+# Абсолютный путь к иконке для корректной встройки в exe
+# Используем getcwd(), т.к. __file__ недоступен в spec-файле при сборке
+icon_path = os.path.join(os.getcwd(), 'icon.ico')
 
 # Собираем данные из resources и utilities
 datas = (
     collect_data_files('resources') +
     collect_data_files('core') +
-    collect_data_files('ui')
+    collect_data_files('ui') +
+    [('icon.ico', 'icon.ico')]
 )
 
 # Скрытые импорты
