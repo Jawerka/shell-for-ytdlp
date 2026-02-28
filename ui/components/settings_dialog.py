@@ -261,25 +261,9 @@ class SettingsDialog(ctk.CTkToplevel):
             )
             label.pack(side="left", fill="x", expand=True)
 
-        # Кнопки действий
+        # Кнопки действий (высота: 44px = 40px кнопка + 4px отступы)
         buttons_frame = ctk.CTkFrame(card, fg_color="transparent")
         buttons_frame.pack(fill="x", padx=Spacing.LG, pady=(0, Spacing.LG))
-
-        # Кнопка "Очистить cookies"
-        if self.cookies_path:
-            full_clear_btn = ctk.CTkButton(
-                buttons_frame,
-                text="✕ Очистить cookies",
-                width=140,
-                height=40,
-                command=self._clear_cookies,
-                fg_color=COLOR_THEME["bg_card"],
-                hover_color=COLOR_THEME["accent"],
-                corner_radius=COLOR_THEME["radius_md"],
-                text_color=COLOR_THEME["text_primary"],
-                font=ctk.CTkFont(size=13),
-            )
-            full_clear_btn.pack(side="left", padx=(0, Spacing.SM))
 
         # Пространство
         spacer = ctk.CTkFrame(buttons_frame, fg_color="transparent")
