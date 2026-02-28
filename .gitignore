@@ -1,7 +1,56 @@
+# IDE
 /.idea
-/dist
+/.vscode
+/*.swp
+/*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+
+# Виртуальное окружение
 /venv
+.env
+.venv
+
+# Сборка
+/dist
 /build
-/utilities
-/download
+*.spec.bak
+
+# Конфигурация
 config.json
+config.json.bak
+
+# Логи
+*.log
+logs/
+
+# Временные файлы
+/tmp
+temp
+*.tmp
+
+# Тестовые загрузки
+/download
+/test_downloads
+*.part
+
+# Утилиты (скачанные)
+/utilities/yt-dlp.exe
+/utilities/ffmpeg.exe
+/utilities/ffplay.exe
+/utilities/ffprobe.exe
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+desktop.ini
