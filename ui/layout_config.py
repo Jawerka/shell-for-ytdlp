@@ -28,7 +28,7 @@ PROGRESS_PADX = Spacing.LG # 14px - горизонтальные отступы 
 
 # Поле URL
 URL_HEIGHT = 42            # Высота поля URL
-URL_WIDTH = 380            # Ширина поля URL
+URL_WIDTH = 340            # Ширина поля URL
 
 # Поле пути
 PATH_HEIGHT = 28           # Высота поля пути (текст 12pt + отступы)

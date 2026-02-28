@@ -12,7 +12,7 @@ from tkinter import filedialog
 
 from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
-from core.utils import find_cookies_txt
+from core.utils import find_cookies_txt, normalize_path_for_display
 
 
 class CookiesDialog(ctk.CTkToplevel):
@@ -101,7 +101,7 @@ class CookiesDialog(ctk.CTkToplevel):
 
         # Установить текущий путь
         if self.current_cookies_path:
-            self.path_entry.insert(0, self.current_cookies_path)
+            self.path_entry.insert(0, normalize_path_for_display(self.current_cookies_path))
 
         # Кнопка обзора
         browse_icon = IconManager.get("folder", "📂")

@@ -14,7 +14,7 @@ import shlex
 from typing import Callable, Optional, Tuple, List
 
 from .config import ConfigManager
-from .utils import find_cookies_txt
+from .utils import find_cookies_txt, normalize_path_for_display
 
 # Логгер для отладки
 logger = logging.getLogger('UI-for-ytdlp.downloader')
@@ -229,7 +229,7 @@ class YouTubeDownloader:
         logger.debug(f"download: Команда: {cmd}")
 
         self._log(f"Запуск загрузки: {url}")
-        self._log(f"Путь сохранения: {download_path}")
+        self._log(f"Путь сохранения: {normalize_path_for_display(download_path)}")
 
         logger.debug("download: Запуск subprocess.Popen")
 

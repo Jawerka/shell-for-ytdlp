@@ -19,7 +19,7 @@ logger = logging.getLogger('UI-for-ytdlp.main_window')
 from core.config import ConfigManager
 from core.logger import GUILogger
 from core.downloader import YouTubeDownloader
-from core.utils import get_clipboard_url, validate_url_for_ui, find_cookies_in_utilities
+from core.utils import get_clipboard_url, validate_url_for_ui, find_cookies_in_utilities, normalize_path_for_display
 from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
 from core.notifications import send_download_complete, send_download_error
@@ -90,7 +90,7 @@ class MainWindow(ctk.CTk):
             if auto_path:
                 self.config_manager.set('COOKIES_PATH', auto_path)
                 self.config_manager.save()
-                self.log_viewer.info(f"Найден cookies.txt: {auto_path}")
+                self.log_viewer.info(f"Найден cookies.txt: {normalize_path_for_display(auto_path)}")
 
     def _create_ui(self) -> None:
         """Создать пользовательский интерфейс с едиными отступами."""
@@ -306,7 +306,7 @@ class MainWindow(ctk.CTk):
             self.config_manager.set('DOWNLOAD_PATH', folder)
             self.config_manager.save()
             self.path_label.configure(text=folder, text_color=COLOR_THEME["text_primary"])
-            self.log_viewer.success(f"Папка загрузки: {folder}")
+            self.log_viewer.success(f"Папка загрузки: {normalize_path_for_display(folder)}")
     
     def _open_sponsorblock_settings(self) -> None:
         """Открыть настройки SponsorBlock."""
@@ -332,9 +332,9 @@ class MainWindow(ctk.CTk):
             self.config_manager.save()
             if path:
                 if os.path.exists(path):
-                    self.log_viewer.success(f"cookies.txt: {path}")
+                    self.log_viewer.success(f"cookies.txt: {normalize_path_for_display(path)}")
                 else:
-                    self.log_viewer.warning(f"cookies.txt не найден: {path}")
+                    self.log_viewer.warning(f"cookies.txt не найден: {normalize_path_for_display(path)}")
             else:
                 self.log_viewer.info("cookies.txt отключен")
 
@@ -375,31 +375,31 @@ class MainWindow(ctk.CTk):
             
             # Проверка: папка существует
             if not os.path.exists(current_path):
-                self.log_viewer.error(f"Папка не найдена: {current_path}")
+                self.log_viewer.error(f"Папка не найдена: {normalize_path_for_display(current_path)}")
                 return
             
             # Проверка: это действительно папка
             if not os.path.isdir(current_path):
-                self.log_viewer.error(f"Указанный путь не является папкой: {current_path}")
+                self.log_viewer.error(f"Указанный путь не является папкой: {normalize_path_for_display(current_path)}")
                 return
             
             # Попытка открыть папку
             try:
                 if sys.platform == "win32":
                     os.startfile(current_path)
-                    self.log_viewer.info(f"Открыта папка: {current_path}")
+                    self.log_viewer.info(f"Открыта папка: {normalize_path_for_display(current_path)}")
                 elif sys.platform == "darwin":  # macOS
                     subprocess.run(["open", current_path], check=True, timeout=5)
-                    self.log_viewer.info(f"Открыта папка: {current_path}")
+                    self.log_viewer.info(f"Открыта папка: {normalize_path_for_display(current_path)}")
                 else:  # Linux и другие Unix-системы
                     subprocess.run(["xdg-open", current_path], check=True, timeout=5)
-                    self.log_viewer.info(f"Открыта папка: {current_path}")
+                    self.log_viewer.info(f"Открыта папка: {normalize_path_for_display(current_path)}")
             except subprocess.TimeoutExpired:
                 self.log_viewer.warning("Превышено время открытия папки")
             except FileNotFoundError:
                 self.log_viewer.error("Не найдена команда для открытия папки")
             except PermissionError:
-                self.log_viewer.error(f"Нет доступа к папке: {current_path}")
+                self.log_viewer.error(f"Нет доступа к папке: {normalize_path_for_display(current_path)}")
             except OSError as e:
                 self.log_viewer.error(f"Системная ошибка: {e}")
             except Exception as e:

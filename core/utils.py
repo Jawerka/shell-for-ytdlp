@@ -6,6 +6,7 @@
 - Валидации URL
 - Работы с буфером обмена
 - Поиска cookies.txt
+- Нормализации путей
 """
 
 import os
@@ -17,6 +18,25 @@ import pyperclip
 
 # Константа таймаута для сетевых запросов (секунды)
 DEFAULT_TIMEOUT = 10
+
+
+def normalize_path_for_display(path: str) -> str:
+    """
+    Нормализовать путь для отображения в UI (стиль Windows).
+
+    Преобразует все слеши к обратному виду (backslash),
+    как принято в Windows.
+
+    Args:
+        path: Путь для нормализации
+
+    Returns:
+        Нормализованный путь
+    """
+    if not path:
+        return path
+    # Заменяем прямые слеши на обратные
+    return path.replace('/', '\\')
 
 
 def is_valid_url(text: str) -> bool:
