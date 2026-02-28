@@ -7,13 +7,13 @@ UI модуль приложения.
 - main_window: Главное окно приложения
 """
 
-from .components import UrlInput, LogViewer, ProgressBarWithText, SponsorBlockDialog
+from .components import UrlInput, LogViewer, ProgressBarWithText, SettingsDialog
 from .main_window import MainWindow
 
 __all__ = [
     'UrlInput',
     'LogViewer',
     'ProgressBarWithText',
-    'SponsorBlockDialog',
+    'SettingsDialog',
     'MainWindow',
 ]
