@@ -132,7 +132,27 @@ class SettingsDialog(ctk.CTkToplevel):
             justify="left",
             anchor="w"
         )
-        cookies_desc.pack(fill="x", pady=(0, Spacing.SM))
+        cookies_desc.pack(fill="x", pady=(0, Spacing.XS))
+
+        # Интерактивная ссылка на документацию
+        help_label = ctk.CTkLabel(
+            cookies_section,
+            text="(help)",
+            font=ctk.CTkFont(size=12, underline=True),
+            text_color=COLOR_THEME["primary"],
+            cursor="hand2",
+            anchor="w"
+        )
+        help_label.pack(fill="x", pady=(0, Spacing.SM))
+        
+        # Открытие ссылки при клике
+        def _open_help(event=None):
+            import webbrowser
+            webbrowser.open("https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp")
+        
+        help_label.bind("<Button-1>", _open_help)
+        help_label.bind("<Enter>", lambda e: help_label.configure(text_color=COLOR_THEME["primary_hover"]))
+        help_label.bind("<Leave>", lambda e: help_label.configure(text_color=COLOR_THEME["primary"]))
 
         # Поле ввода пути
         cookies_path_frame = ctk.CTkFrame(cookies_section, fg_color="transparent")
