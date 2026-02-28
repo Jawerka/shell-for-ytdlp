@@ -77,18 +77,19 @@ class SettingsDialog(ctk.CTkToplevel):
         self._create_ui()
 
     def _create_ui(self) -> None:
-        # Верхняя часть с кнопками
-        top_frame = ctk.CTkFrame(self, fg_color="transparent")
-        top_frame.pack(fill="x", padx=Spacing.LG, pady=Spacing.LG)
+        # Основной контейнер окна
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=Spacing.LG, pady=Spacing.LG)
 
+        # Карточка с настройками (занимает всё доступное место)
         card = ctk.CTkFrame(
-            top_frame,
+            main_frame,
             fg_color=COLOR_THEME["bg_card"],
             corner_radius=COLOR_THEME["radius_lg"],
             border_width=COLOR_THEME.get("border_width", 1),
             border_color=COLOR_THEME.get("border", "#252525")
         )
-        card.pack(side="left", fill="both", expand=True)
+        card.pack(fill="both", expand=True)
 
         # Заголовок
         title_label = ctk.CTkLabel(
@@ -101,7 +102,7 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         title_label.pack(pady=(Spacing.LG, Spacing.MD), padx=Spacing.LG, anchor="w")
 
-        # Создаём прокручиваемую область
+        # Создаём прокручиваемую область (занимает всё место внутри card)
         scroll_frame = ctk.CTkScrollableFrame(
             card,
             fg_color="transparent",
@@ -265,9 +266,13 @@ class SettingsDialog(ctk.CTkToplevel):
             )
             label.pack(side="left", fill="x", expand=True)
 
-        # Кнопки действий (под карточкой, высота: 40px)
-        buttons_frame = ctk.CTkFrame(self, fg_color="transparent")
-        buttons_frame.pack(fill="x", padx=Spacing.LG, pady=(Spacing.SM, Spacing.LG))
+        # Кнопки действий (фиксированная высота 46px, прижаты к низу main_frame)
+        buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        buttons_frame.pack(fill="x", side="bottom", pady=(Spacing.XS, 0))
+        
+        # Фиксируем высоту кнопок: 40px кнопка + 6px отступы = 46px
+        buttons_frame.configure(height=46)
+        buttons_frame.pack_propagate(False)  # Запретить изменение высоты
 
         # Пространство
         spacer = ctk.CTkFrame(buttons_frame, fg_color="transparent")
