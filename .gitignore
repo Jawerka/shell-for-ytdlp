@@ -41,14 +41,12 @@ temp
 
 # Тестовые загрузки
 /download
-/test_downloads
+/test_downloads/*
 *.part
 
 # Утилиты (скачанные)
-/utilities/yt-dlp.exe
-/utilities/ffmpeg.exe
-/utilities/ffplay.exe
-/utilities/ffprobe.exe
+/utilities/*
+!/utilities/.gitkeep
 
 # macOS
 .DS_Store
