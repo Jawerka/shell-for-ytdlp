@@ -49,7 +49,7 @@ hiddenimports = [
     'ui.components.url_input',
     'ui.components.log_viewer',
     'ui.components.progress_bar',
-    'ui.components.sponsorblock_dialog',
+    'ui.components.settings_dialog',
 ]
 
 # Анализ исходного кода
