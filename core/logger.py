@@ -50,13 +50,11 @@ class GUILogger:
     def _log(self, message: str, level: LogLevel) -> None:
         """
         Внутренний метод логирования.
-        
+
         Args:
             message: Сообщение
             level: Уровень логирования
         """
-        # Обеспечиваем правильную обработку русских символов
-        message = message.encode('utf-8', errors='replace').decode('utf-8')
         timestamp = datetime.now().strftime('%H:%M:%S')
         formatted = f"[{timestamp}] {message}"
         self._logs.append((formatted, level))
