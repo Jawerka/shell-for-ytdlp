@@ -37,6 +37,7 @@ logs/
 /tmp
 temp
 *.tmp
+*.zip
 
 # Тестовые загрузки
 /download
