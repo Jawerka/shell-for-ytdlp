@@ -55,7 +55,11 @@ ICONS = {
     # SponsorBlock
     "sponsorblock": "🛡",  # Щит
     "shield": "🛡",        # Щит (алиас)
-    
+
+    # Cookies
+    "cookies": "🍪",      # Печенье
+    "cookie": "🍪",       # Печенье (алиас)
+
     # Медиа
     "play": "▶",          # Воспроизвести
     "pause": "⏸",         # Пауза

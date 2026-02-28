@@ -19,7 +19,7 @@ logger = logging.getLogger('UI-for-ytdlp.main_window')
 from core.config import ConfigManager
 from core.logger import GUILogger
 from core.downloader import YouTubeDownloader
-from core.utils import get_clipboard_url, validate_url_for_ui
+from core.utils import get_clipboard_url, validate_url_for_ui, find_cookies_in_utilities
 from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
 from core.notifications import send_download_complete, send_download_error
@@ -28,6 +28,7 @@ from ui.components.url_input import UrlInput
 from ui.components.log_viewer import LogViewer
 from ui.components.progress_bar import ProgressBarWithText
 from ui.components.sponsorblock_dialog import SponsorBlockDialog
+from ui.components.cookies_dialog import CookiesDialog
 from ui.tooltip import create_tooltip
 from ui.layout_config import (
     BTN_SIZE, BTN_FONT_SIZE,
@@ -56,12 +57,14 @@ class MainWindow(ctk.CTk):
         self.icon_sponsorblock = IconManager.get("sponsorblock", "🛡")
         self.icon_clear = IconManager.get("clear", "✕")
         self.icon_paste = IconManager.get("paste", "⧉")
+        self.icon_cookies = IconManager.get("cookies", "🍪")
 
         setup_theme()
         self._setup_window()
         self._create_ui()
         self._setup_hotkeys()
         self._init_path_label()
+        self._init_cookies_path()
 
         self.after(500, self._check_clipboard_and_download)
 
@@ -77,6 +80,17 @@ class MainWindow(ctk.CTk):
         saved_path = self.config_manager.get('DOWNLOAD_PATH', '')
         if saved_path:
             self.path_label.configure(text=saved_path, text_color=COLOR_THEME["text_primary"])
+
+    def _init_cookies_path(self) -> None:
+        """Инициализировать путь к cookies.txt."""
+        saved_path = self.config_manager.get('COOKIES_PATH', '')
+        if not saved_path:
+            # Автоматически найти cookies.txt в utilities
+            auto_path = find_cookies_in_utilities()
+            if auto_path:
+                self.config_manager.set('COOKIES_PATH', auto_path)
+                self.config_manager.save()
+                self.log_viewer.info(f"Найден cookies.txt: {auto_path}")
 
     def _create_ui(self) -> None:
         """Создать пользовательский интерфейс с едиными отступами."""
@@ -155,6 +169,18 @@ class MainWindow(ctk.CTk):
         )
         self.folder_button.pack(side="left", padx=(0, BUTTON_GAP))
         create_tooltip(self.folder_button, "Выбрать папку для загрузки (Ctrl+O)", delay=3000)
+
+        # Кнопка cookies
+        self.cookies_button = ctk.CTkButton(
+            buttons_frame,
+            text=self.icon_cookies,
+            command=self._open_cookies_settings,
+            fg_color=COLOR_THEME["accent"],
+            hover_color=COLOR_THEME["accent_hover"],
+            **btn_kwargs
+        )
+        self.cookies_button.pack(side="left", padx=(0, BUTTON_GAP))
+        create_tooltip(self.cookies_button, "Настройка cookies.txt (доступ к премиум-контенту)", delay=3000)
 
         self.sponsorblock_button = ctk.CTkButton(
             buttons_frame,
@@ -295,6 +321,24 @@ class MainWindow(ctk.CTk):
                 self.log_viewer.info("SponsorBlock отключен")
 
         dialog = SponsorBlockDialog(self, current_categories, on_save)
+        dialog.focus()
+
+    def _open_cookies_settings(self) -> None:
+        """Открыть настройки cookies.txt."""
+        current_path = self.config_manager.get('COOKIES_PATH', '')
+
+        def on_save(path: Optional[str]):
+            self.config_manager.set('COOKIES_PATH', path if path else '')
+            self.config_manager.save()
+            if path:
+                if os.path.exists(path):
+                    self.log_viewer.success(f"cookies.txt: {path}")
+                else:
+                    self.log_viewer.warning(f"cookies.txt не найден: {path}")
+            else:
+                self.log_viewer.info("cookies.txt отключен")
+
+        dialog = CookiesDialog(self, current_path, on_save)
         dialog.focus()
 
     def _setup_path_hover(self) -> None:

@@ -94,10 +94,10 @@ def validate_url_for_ui(text: str) -> Tuple[bool, str]:
 def find_cookies_txt(start_dir: str) -> Optional[str]:
     """
     Найти последний изменённый cookies.txt.
-    
+
     Args:
         start_dir: Директория для поиска
-        
+
     Returns:
         Путь к cookies.txt или None
     """
@@ -107,3 +107,15 @@ def find_cookies_txt(start_dir: str) -> Optional[str]:
         for name in files if name.endswith("cookies.txt")
     ]
     return max(cookies, key=os.path.getmtime) if cookies else None
+
+
+def find_cookies_in_utilities() -> Optional[str]:
+    """
+    Найти cookies.txt в директории utilities.
+
+    Returns:
+        Путь к cookies.txt или None
+    """
+    from core.config import get_utilities_path
+    utilities_dir = get_utilities_path()
+    return find_cookies_txt(utilities_dir)

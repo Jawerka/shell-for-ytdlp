@@ -76,6 +76,8 @@ DEFAULT_CONFIG = {
     'QUESTION_BYPASS': False,
     # Настройки уведомлений
     'ENABLE_NOTIFICATIONS': True,
+    # Настройки cookies
+    'COOKIES_PATH': '',
 }
 
 

@@ -106,14 +106,23 @@ class YouTubeDownloader:
         logger.debug(f"_build_command: Базовая команда: {len(cmd)} аргументов")
 
         # Поиск cookies.txt
-        cookies_file = find_cookies_txt(utilities_path)
-        if cookies_file:
-            logger.debug(f"_build_command: Найден cookies.txt: {cookies_file}")
-            self._log(f"Найден cookies.txt: {os.path.basename(cookies_file)}")
+        # Сначала проверяем конфигурацию COOKIES_PATH
+        cookies_file = self.config.get('COOKIES_PATH', '')
+        if cookies_file and os.path.exists(cookies_file):
+            logger.debug(f"_build_command: Используется cookies.txt из конфигурации: {cookies_file}")
+            self._log(f"Используется cookies.txt")
             cmd.append('--cookies')
             cmd.append(quote_path(cookies_file))
         else:
-            logger.debug("_build_command: cookies.txt не найден")
+            # Если не указан в конфигурации, ищем в utilities
+            cookies_file = find_cookies_txt(utilities_path)
+            if cookies_file:
+                logger.debug(f"_build_command: Найден cookies.txt: {cookies_file}")
+                self._log(f"Найден cookies.txt: {os.path.basename(cookies_file)}")
+                cmd.append('--cookies')
+                cmd.append(quote_path(cookies_file))
+            else:
+                logger.debug("_build_command: cookies.txt не найден")
 
         # SponsorBlock
         sponsorblock_list = self.config.get('SPONSORBLOCK_REMOVE_LIST', [])
