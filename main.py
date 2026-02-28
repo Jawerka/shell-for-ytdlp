@@ -204,6 +204,13 @@ def main():
         logger.debug("MainWindow успешно создан")
         logger.debug(f"Размер окна: {app.geometry()}")
         logger.debug(f"Заголовок: {app.title()}")
+        
+        # Установка иконки приложения
+        try:
+            app.iconbitmap('icon.ico')  # для Windows
+        except Exception:
+            # Если иконка недоступна, продолжить без нее
+            logger.warning("Не удалось установить иконку приложения")
     except Exception as e:
         logger.error(f"Ошибка создания MainWindow: {e}", exc_info=True)
         raise

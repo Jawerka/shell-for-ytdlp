@@ -273,7 +273,9 @@ class YouTubeDownloader:
                         self._progress(percent, progress_info)
                     else:
                         # Логируем все сообщения от yt-dlp
-                        self._log(line)
+                        # Обеспечиваем правильную обработку русских символов
+                        processed_line = line.encode('utf-8', errors='replace').decode('utf-8')
+                        self._log(processed_line)
                 
                 logger.debug(f"download: Всего строк вывода: {line_count}")
 

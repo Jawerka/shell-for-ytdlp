@@ -195,6 +195,9 @@ class MainWindow(ctk.CTk):
         # Подсветка поля пути при наведении
         self._setup_path_hover()
 
+        # Добавляем возможность открытия папки по клику
+        self._setup_path_click()
+
         # Контент: лог + прогресс
         content = ctk.CTkFrame(self.main_frame, fg_color="transparent")
         content.pack(fill="both", expand=True)
@@ -307,6 +310,58 @@ class MainWindow(ctk.CTk):
 
         self.path_label.bind("<Enter>", on_enter)
         self.path_label.bind("<Leave>", on_leave)
+
+    def _setup_path_click(self) -> None:
+        """Настроить открытие папки по клику на поле пути."""
+        import subprocess
+        import sys
+
+        def on_click(event):
+            current_path = self.path_label.cget("text")
+            
+            # Проверка: путь не выбран
+            if current_path == "Выберите папку для загрузки":
+                self.log_viewer.info("Нажмите 📂 для выбора папки")
+                return
+            
+            # Проверка: пустой путь
+            if not current_path or not current_path.strip():
+                self.log_viewer.warning("Путь к папке не указан")
+                return
+            
+            # Проверка: папка существует
+            if not os.path.exists(current_path):
+                self.log_viewer.error(f"Папка не найдена: {current_path}")
+                return
+            
+            # Проверка: это действительно папка
+            if not os.path.isdir(current_path):
+                self.log_viewer.error(f"Указанный путь не является папкой: {current_path}")
+                return
+            
+            # Попытка открыть папку
+            try:
+                if sys.platform == "win32":
+                    os.startfile(current_path)
+                    self.log_viewer.info(f"Открыта папка: {current_path}")
+                elif sys.platform == "darwin":  # macOS
+                    subprocess.run(["open", current_path], check=True, timeout=5)
+                    self.log_viewer.info(f"Открыта папка: {current_path}")
+                else:  # Linux и другие Unix-системы
+                    subprocess.run(["xdg-open", current_path], check=True, timeout=5)
+                    self.log_viewer.info(f"Открыта папка: {current_path}")
+            except subprocess.TimeoutExpired:
+                self.log_viewer.warning("Превышено время открытия папки")
+            except FileNotFoundError:
+                self.log_viewer.error("Не найдена команда для открытия папки")
+            except PermissionError:
+                self.log_viewer.error(f"Нет доступа к папке: {current_path}")
+            except OSError as e:
+                self.log_viewer.error(f"Системная ошибка: {e}")
+            except Exception as e:
+                self.log_viewer.error(f"Не удалось открыть папку: {e}")
+
+        self.path_label.bind("<Button-1>", on_click)
 
     def _validate_and_prepare_url(self, url: str) -> Tuple[bool, str]:
         """
