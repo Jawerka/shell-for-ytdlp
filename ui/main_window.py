@@ -453,6 +453,10 @@ class MainWindow(ctk.CTk):
 
         url = result
 
+        # Сохранение конфигурации перед загрузкой
+        self.config_manager.save()
+        logger.debug("_start_download: Конфигурация сохранена")
+
         # Блокировка кнопки
         self.is_downloading = True
         self.download_button.configure(
@@ -635,6 +639,10 @@ class MainWindow(ctk.CTk):
 
     def _on_closing(self) -> None:
         """Обработчик закрытия окна."""
+        # Сохранение конфигурации при закрытии
+        self.config_manager.save()
+        logger.debug("_on_closing: Конфигурация сохранена")
+
         if self.is_downloading:
             # Создаём кастомный диалог подтверждения в тёмной теме
             dialog = ctk.CTkToplevel(self)
