@@ -3,6 +3,8 @@
 Главное окно приложения UI-for-ytdlp.
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import threading
@@ -29,11 +31,13 @@ logger = logging.getLogger('UI-for-ytdlp.main_window')
 from core.config import ConfigManager
 from core.logger import GUILogger
 from core.downloader import YouTubeDownloader
-from core.utils import get_clipboard_url, validate_url_for_ui, find_cookies_in_utilities, normalize_path_for_display
+from core.utils import get_clipboard_url, validate_url_for_ui, find_cookies_in_utilities, normalize_path_for_display, is_supported_video_url
 from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
 from core.notifications import send_download_complete, send_download_error
 from core.deno_installer import ensure_deno_exists
+from core.clipboard_monitor import ClipboardMonitor
+from core.sound_manager import SoundManager
 
 from ui.components.url_input import UrlInput
 from ui.components.log_viewer import LogViewer
@@ -68,6 +72,15 @@ class MainWindow(ctk.CTk):
         self.icon_clear = IconManager.get("clear", "✕")
         self.icon_paste = IconManager.get("paste", "📋")
 
+        # Инициализация монитора буфера обмена
+        self.clipboard_monitor = ClipboardMonitor(
+            check_interval=2.0,
+            on_url_detected=self._on_clipboard_url_detected
+        )
+
+        # Инициализация менеджера звуковых эффектов
+        self.sound_manager = SoundManager(enabled=True)
+
         setup_theme()
         self._setup_window()
         self._create_ui()
@@ -75,7 +88,8 @@ class MainWindow(ctk.CTk):
         self._init_path_label()
         self._init_cookies_path()
 
-        self.after(500, self._check_clipboard_and_download)
+        # Запуск мониторинга буфера обмена если включено
+        self.after(500, self._initialize_clipboard_monitoring)
 
     def _setup_window(self) -> None:
         self.title("UI-for-ytdlp")
@@ -115,6 +129,68 @@ class MainWindow(ctk.CTk):
                 self.config_manager.set('COOKIES_PATH', auto_path)
                 self.config_manager.save()
                 self.log_viewer.info(f"Найден cookies.txt: {normalize_path_for_display(auto_path)}")
+
+    def _initialize_clipboard_monitoring(self) -> None:
+        """Инициализировать мониторинг буфера обмена."""
+        clipboard_monitoring_enabled = self.config_manager.get('CLIPBOARD_MONITORING', False)
+
+        if clipboard_monitoring_enabled:
+            self.clipboard_monitor.start()
+            self.log_viewer.info("Мониторинг буфера обмена включён")
+            # Проверяем буфер при старте
+            self.after(300, self._check_clipboard_and_download)
+        else:
+            # Старая логика - просто проверяем буфер при старте
+            self._check_clipboard_and_download()
+
+    def _on_clipboard_url_detected(self, url: str) -> None:
+        """
+        Обработать URL, обнаруженный в буфере обмена.
+
+        Args:
+            url: Обнаруженный URL
+        """
+        # Используем call_soon_threadsafe для безопасного вызова из потока
+        self.after(0, lambda: self._handle_clipboard_url(url))
+
+    def _handle_clipboard_url(self, url: str) -> None:
+        """
+        Обработать URL из буфера обмена в главном потоке.
+
+        Args:
+            url: Обнаруженный URL
+        """
+        # Проверяем, не загружается ли уже что-то
+        if self.is_downloading:
+            self.log_viewer.info(f"Обнаружена ссылка в буфере: {url[:80]}... (загрузка уже идёт)")
+            return
+
+        # Проверяем, не та же ли это ссылка, что уже в поле ввода
+        current_url = self.url_input.get_url()
+        if current_url and current_url.strip() == url.strip():
+            return
+
+        # Проверяем, не загружали ли уже этот URL последним
+        last_url = self.config_manager.get('LAST_DOWNLOADED_URL', '')
+        if last_url and last_url.strip() == url.strip():
+            self.log_viewer.info(f"📋 Ссылка уже была загружена: {url[:80]}... (пропуск)")
+            return
+
+        # Устанавливаем URL и начинаем загрузку
+        self.url_input.set_url(url)
+        self.log_viewer.info(f"📋 Обнаружена новая ссылка: {url[:80]}...")
+        self.log_viewer.info("Начинаю загрузку автоматически...")
+        self.after(500, self._start_download)
+
+    def _check_clipboard_and_download(self) -> None:
+        """Проверить буфер обмена и начать загрузку если есть URL."""
+        url = get_clipboard_url()
+        if url:
+            self.url_input.set_url(url)
+            self.log_viewer.info(f"Обнаружена ссылка в буфере: {url}")
+            self.after(800, self._start_download)
+        else:
+            self.log_viewer.info("Вставьте URL или нажмите кнопку Скачать")
 
     def _create_ui(self) -> None:
         """Создать пользовательский интерфейс с едиными отступами."""
@@ -328,14 +404,14 @@ class MainWindow(ctk.CTk):
         current_cookies_path = self.config_manager.get('COOKIES_PATH', '')
         current_categories = self.config_manager.get('SPONSORBLOCK_REMOVE_LIST', ['sponsor', 'selfpromo'])
 
-        def on_save(cookies_path: Optional[str], categories: List[str]):
+        def on_save(cookies_path: Optional[str], categories: List[str], clipboard_monitoring: bool):
             # Сохранение cookies path
             self.config_manager.set('COOKIES_PATH', cookies_path if cookies_path else '')
-            
+
             # Сохранение категорий SponsorBlock
             self.config_manager.set('SPONSORBLOCK_REMOVE_LIST', categories)
             self.config_manager.save()
-            
+
             # Логи
             if cookies_path:
                 if os.path.exists(cookies_path):
@@ -344,13 +420,32 @@ class MainWindow(ctk.CTk):
                     self.log_viewer.warning(f"cookies.txt не найден: {normalize_path_for_display(cookies_path)}")
             else:
                 self.log_viewer.info("cookies.txt отключен")
-            
+
             if categories:
                 self.log_viewer.info(f"SponsorBlock: {len(categories)} категорий выбрано")
             else:
                 self.log_viewer.info("SponsorBlock отключен")
 
-        dialog = SettingsDialog(self, current_cookies_path, current_categories, on_save)
+            # Сохранение настройки мониторинга буфера обмена
+            self.config_manager.set('CLIPBOARD_MONITORING', clipboard_monitoring)
+            self.config_manager.save()
+
+            # Запуск или остановка мониторинга
+            if clipboard_monitoring:
+                self.clipboard_monitor.start()
+                self.log_viewer.info("Мониторинг буфера обмена включён")
+            else:
+                self.clipboard_monitor.stop()
+                self.log_viewer.info("Мониторинг буфера обмена отключён")
+
+        clipboard_monitoring_enabled = self.config_manager.get('CLIPBOARD_MONITORING', False)
+        dialog = SettingsDialog(
+            self,
+            current_cookies_path,
+            current_categories,
+            clipboard_monitoring_enabled,
+            on_save
+        )
         dialog.focus()
 
     def _setup_path_hover(self) -> None:
@@ -465,6 +560,20 @@ class MainWindow(ctk.CTk):
 
         url = result
 
+        # Проверка: не загружали ли уже этот URL
+        last_url = self.config_manager.get('LAST_DOWNLOADED_URL', '')
+        if last_url and last_url == url:
+            self.log_viewer.warning("Этот URL уже был загружен последним. Пропускаю повторную загрузку.")
+            return
+
+        # Воспроизведение звука начала загрузки (сразу при нажатии кнопки)
+        self.sound_manager.play_start_download()
+
+        # Приостановка мониторинга буфера обмена на время загрузки
+        if self.clipboard_monitor.is_running():
+            self.clipboard_monitor.pause()
+            logger.debug("Мониторинг буфера обмена приостановлен на время загрузки")
+
         # Сохранение конфигурации перед загрузкой
         self.config_manager.save()
         logger.debug("_start_download: Конфигурация сохранена")
@@ -477,7 +586,7 @@ class MainWindow(ctk.CTk):
             font=ctk.CTkFont(size=18)
         )
         self.progress_bar.reset()
-        
+
         # Показываем статус обновления утилит
         self.progress_bar.update_progress(0, text="Проверка утилит...")
 
@@ -623,11 +732,18 @@ class MainWindow(ctk.CTk):
         self.after(0, self._on_download_complete)
 
         if success:
+            # Сохраняем последний успешно загруженный URL
+            self.config_manager.set('LAST_DOWNLOADED_URL', url)
+            self.config_manager.save()
+            
             self.after(0, lambda: self.log_viewer.success("Загрузка завершена"))
             self.after(100, lambda: send_download_complete("Загрузка завершена", "Видео успешно загружено"))
+            self.after(150, lambda: self.sound_manager.play_end_download())
         else:
             self.after(0, lambda: self.log_viewer.error("Ошибка загрузки"))
             self.after(100, lambda: send_download_error("Ошибка загрузки", "Произошла ошибка при загрузке видео"))
+            # Звук ошибки зарезервирован на будущее
+            # self.after(150, lambda: self.sound_manager.play_error_download())
 
     def _on_download_complete(self) -> None:
         """Завершение загрузки."""
@@ -638,6 +754,11 @@ class MainWindow(ctk.CTk):
             font=ctk.CTkFont(size=18)
         )
         self.downloader = None
+
+        # Возобновляем мониторинг буфера обмена после завершения загрузки
+        if self.clipboard_monitor.is_running():
+            self.clipboard_monitor.resume()
+            logger.debug("Мониторинг буфера обмена возобновлен")
 
     def _setup_hotkeys(self) -> None:
         """Настроить горячие клавиши."""
@@ -675,6 +796,13 @@ class MainWindow(ctk.CTk):
 
     def _on_closing(self) -> None:
         """Обработчик закрытия окна."""
+        # Остановка мониторинга буфера обмена
+        if self.clipboard_monitor.is_running():
+            self.clipboard_monitor.stop()
+
+        # Остановка звукового менеджера
+        self.sound_manager.shutdown()
+
         # Сохранение конфигурации при закрытии
         self.config_manager.save()
         logger.debug("_on_closing: Конфигурация сохранена")

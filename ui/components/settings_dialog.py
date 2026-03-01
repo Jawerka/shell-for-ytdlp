@@ -34,7 +34,8 @@ class SettingsDialog(ctk.CTkToplevel):
         parent,
         cookies_path: Optional[str],
         sponsorblock_categories: List[str],
-        on_save: Callable[[Optional[str], List[str]], None]
+        clipboard_monitoring: bool = False,
+        on_save: Callable[[Optional[str], List[str], bool], None] = None
     ):
         self.parent = parent
         setup_theme()
@@ -42,11 +43,12 @@ class SettingsDialog(ctk.CTkToplevel):
 
         self.cookies_path = cookies_path
         self.sponsorblock_categories = set(sponsorblock_categories)
+        self.clipboard_monitoring = clipboard_monitoring
         self.on_save_callback = on_save
 
         self.title("Настройки")
-        self.geometry("620x550")
-        self.minsize(620, 550)
+        self.geometry("620x700")
+        self.minsize(620, 700)
         self.transient(parent)
         self.grab_set()
         self.configure(fg_color=COLOR_THEME["bg_primary"])
@@ -91,17 +93,6 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         card.pack(fill="both", expand=True)
 
-        # Заголовок
-        title_label = ctk.CTkLabel(
-            card,
-            text="Настройки загрузки",
-            font=ctk.CTkFont(size=14, weight="bold"),
-            text_color=COLOR_THEME["text_primary"],
-            wraplength=580,
-            justify="left",
-        )
-        title_label.pack(pady=(Spacing.LG, Spacing.MD), padx=Spacing.LG, anchor="w")
-
         # Контент без прокрутки (занимает всё место внутри card)
         content_frame = ctk.CTkFrame(
             card,
@@ -116,7 +107,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         cookies_title = ctk.CTkLabel(
             cookies_section,
-            text="🍪 Cookies.txt",
+            text="Cookies.txt",
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=COLOR_THEME["text_primary"],
             anchor="w"
@@ -220,7 +211,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         sponsorblock_title = ctk.CTkLabel(
             sponsorblock_section,
-            text="🛡 SponsorBlock",
+            text="SponsorBlock",
             font=ctk.CTkFont(size=13, weight="bold"),
             text_color=COLOR_THEME["text_primary"],
             anchor="w"
@@ -287,6 +278,57 @@ class SettingsDialog(ctk.CTkToplevel):
                 anchor="w"
             )
             label.pack(side="left", fill="x", expand=True)
+
+        # === Разделитель ===
+        separator2 = ctk.CTkFrame(content_frame, height=2, fg_color=COLOR_THEME["border"])
+        separator2.pack(fill="x", pady=Spacing.LG)
+
+        # === Секция 3: Мониторинг буфера обмена ===
+        clipboard_section = ctk.CTkFrame(content_frame, fg_color="transparent")
+        clipboard_section.pack(fill="x", pady=(0, Spacing.LG))
+
+        clipboard_title = ctk.CTkLabel(
+            clipboard_section,
+            text="Автозагрузка из буфера обмена",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=COLOR_THEME["text_primary"],
+            anchor="w"
+        )
+        clipboard_title.pack(fill="x", pady=(0, Spacing.SM))
+
+        clipboard_desc = ctk.CTkLabel(
+            clipboard_section,
+            text="Автоматически начинать загрузку при появлении ссылки в буфере обмена",
+            font=ctk.CTkFont(size=12),
+            text_color=COLOR_THEME["text_muted"],
+            wraplength=560,
+            justify="left",
+            anchor="w"
+        )
+        clipboard_desc.pack(fill="x", pady=(0, Spacing.SM))
+
+        # Чекбокс включения
+        self.clipboard_monitor_var = ctk.BooleanVar(value=self.clipboard_monitoring)
+
+        clipboard_checkbox_frame = ctk.CTkFrame(clipboard_section, fg_color="transparent")
+        clipboard_checkbox_frame.pack(fill="x", pady=Spacing.SM)
+
+        clipboard_checkbox = ctk.CTkCheckBox(
+            clipboard_checkbox_frame,
+            text="Включить мониторинг буфера обмена",
+            variable=self.clipboard_monitor_var,
+            width=20,
+            height=20,
+            checkbox_width=20,
+            checkbox_height=20,
+            font=ctk.CTkFont(size=12),
+            text_color=COLOR_THEME["text_primary"],
+            fg_color=COLOR_THEME["bg_card"],
+            border_color=COLOR_THEME["text_muted"],
+            hover_color=COLOR_THEME["primary"],
+            corner_radius=4,
+        )
+        clipboard_checkbox.pack(side="left")
 
         # Кнопки действий (фиксированная высота 46px, прижаты к низу main_frame)
         buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
@@ -363,8 +405,11 @@ class SettingsDialog(ctk.CTkToplevel):
             cat_id for cat_id, var in self.checkbox_vars.items() if var.get()
         ]
 
+        # Clipboard monitoring
+        clipboard_monitoring = self.clipboard_monitor_var.get()
+
         if self.on_save_callback:
-            self.on_save_callback(cookies_path, selected_categories)
+            self.on_save_callback(cookies_path, selected_categories, clipboard_monitoring)
 
         self.destroy()
 

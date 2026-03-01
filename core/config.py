@@ -78,6 +78,10 @@ DEFAULT_CONFIG = {
     'ENABLE_NOTIFICATIONS': True,
     # Настройки cookies
     'COOKIES_PATH': '',
+    # Настройки мониторинга буфера обмена
+    'CLIPBOARD_MONITORING': False,
+    # Последний загруженный URL (для предотвращения повторной загрузки)
+    'LAST_DOWNLOADED_URL': '',
 }
 
 

@@ -139,3 +139,119 @@ def find_cookies_in_utilities() -> Optional[str]:
     from core.config import get_utilities_path
     utilities_dir = get_utilities_path()
     return find_cookies_txt(utilities_dir)
+
+
+# Список доменов популярных видеосервисов для проверки ссылок
+# Основано на https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md
+SUPPORTED_VIDEO_DOMAINS = [
+    # YouTube и связанные
+    'youtube.com',
+    'youtu.be',
+    'www.youtube.com',
+    'music.youtube.com',
+    'gaming.youtube.com',
+    # X (Twitter)
+    'twitter.com',
+    'x.com',
+    'www.twitter.com',
+    'www.x.com',
+    # VK (ВКонтакте)
+    'vk.com',
+    'www.vk.com',
+    'm.vk.com',
+    'vkvideo.ru',
+    'www.vkvideo.ru',
+    # Vimeo
+    'vimeo.com',
+    'www.vimeo.com',
+    'player.vimeo.com',
+    # TikTok
+    'tiktok.com',
+    'www.tiktok.com',
+    'vm.tiktok.com',
+    'vt.tiktok.com',
+    # Instagram
+    'instagram.com',
+    'www.instagram.com',
+    'm.instagram.com',
+    # Facebook
+    'facebook.com',
+    'www.facebook.com',
+    'm.facebook.com',
+    'fb.watch',
+    # Twitch
+    'twitch.tv',
+    'www.twitch.tv',
+    'clips.twitch.tv',
+    # Reddit
+    'reddit.com',
+    'www.reddit.com',
+    'old.reddit.com',
+    'new.reddit.com',
+    # Telegram
+    't.me',
+    'www.t.me',
+    'telegram.org',
+    # Одноклассники
+    'ok.ru',
+    'www.ok.ru',
+    'm.ok.ru',
+    # Dailymotion
+    'dailymotion.com',
+    'www.dailymotion.com',
+    # Bilibili
+    'bilibili.com',
+    'www.bilibili.com',
+    'b23.tv',
+    # SoundCloud
+    'soundcloud.com',
+    'www.soundcloud.com',
+    # Bandcamp
+    'bandcamp.com',
+    'www.bandcamp.com',
+]
+
+
+def is_supported_video_url(url: str) -> bool:
+    """
+    Проверить, является ли URL ссылкой на поддерживаемый видеосервис.
+
+    Выполняет быструю проверку домена без сетевого запроса.
+    Список основан на поддерживаемых сайтах yt-dlp.
+
+    Args:
+        url: URL для проверки
+
+    Returns:
+        True если домен входит в список популярных видеосервисов
+    """
+    if not url or not isinstance(url, str):
+        return False
+
+    url = url.strip().lower()
+
+    # Извлекаем домен из URL
+    try:
+        # Убираем протокол
+        if '://' in url:
+            url_without_protocol = url.split('://')[1]
+        else:
+            url_without_protocol = url
+
+        # Получаем домен (часть до первого /)
+        domain = url_without_protocol.split('/')[0].lower()
+
+        # Проверяем наличие домена в списке поддерживаемых
+        for supported_domain in SUPPORTED_VIDEO_DOMAINS:
+            if domain == supported_domain or domain.endswith('.' + supported_domain):
+                return True
+
+        # Дополнительная проверка для коротких доменов (youtu.be, b23.tv, etc.)
+        for supported_domain in SUPPORTED_VIDEO_DOMAINS:
+            if supported_domain in domain:
+                return True
+
+    except (IndexError, ValueError):
+        return False
+
+    return False

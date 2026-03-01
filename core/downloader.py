@@ -11,6 +11,8 @@ import re
 import subprocess
 import logging
 import shlex
+import threading
+import queue
 from typing import Callable, Optional, Tuple, List
 
 from .config import ConfigManager
@@ -30,6 +32,8 @@ class YouTubeDownloader:
         '--no-mtime',
         '--windows-filenames',
         '--concurrent-fragments', '8',
+        # Выводить прогресс с новой строки (вместо \r)
+        '--newline',
         # Лучшее качество видео и аудио
         '-f', 'bestvideo+bestaudio/best',
     ]
@@ -161,49 +165,55 @@ class YouTubeDownloader:
         Returns:
             Кортеж (процент, информация, скорость, ETA) или None
         """
+        if not line or not isinstance(line, str):
+            return None
+
+        # Пропускаем строки которые точно не содержат прогресс
+        if '[download]' not in line and '%' not in line:
+            return None
+
         # Паттерны для парсинга
-        percent_pattern = r'(\d+\.?\d*)%'
+        # Процент: "45.2%" или "100%"
+        percent_pattern = r'(\d{1,3}\.?\d*)%'
+        # Размер: "47.41MiB" или "2.5 GiB"
         size_pattern = r'(\d+\.?\d*)\s*(MiB|GiB|KiB)'
-        # Скорость: "at 2.50MiB/s" или "at 1.2 GiB/s"
+        # Скорость: "at 2.50MiB/s" или "at 670.99KiB/s"
         speed_pattern = r'at\s+(\d+\.?\d*)\s*(KiB|MiB|GiB)/s'
-        # ETA: "ETA 00:42" или "ETA 01:23:45"
-        eta_pattern = r'ETA\s+([\d:]+)'
+        # ETA: "ETA 00:42" или "ETA 01:23:45" или "in 00:01:12"
+        eta_pattern = r'(?:ETA\s+|in\s+)([\d:]+)'
 
         percent_match = re.search(percent_pattern, line)
-        if percent_match:
-            percent = float(percent_match.group(1))
+        if not percent_match:
+            return None
 
-            # Размер
-            size_info = ""
-            size_match = re.search(size_pattern, line)
-            if size_match:
-                size = size_match.group(0)
-                size_info = f"{percent:.1f}% of {size}"
-            else:
-                size_info = f"{percent:.1f}%"
+        percent = float(percent_match.group(1))
 
-            # Скорость
-            speed = ""
-            speed_match = re.search(speed_pattern, line)
-            if speed_match:
-                speed_val = speed_match.group(1)
-                speed_unit = speed_match.group(2)
-                speed = f"{speed_val} {speed_unit}/s"
+        # Размер
+        size_info = ""
+        size_match = re.search(size_pattern, line)
+        if size_match:
+            size_val = size_match.group(1)
+            size_unit = size_match.group(2)
+            size_info = f"{percent:.1f}% of {size_val}{size_unit}"
+        else:
+            size_info = f"{percent:.1f}%"
 
-            # ETA
-            eta = ""
-            eta_match = re.search(eta_pattern, line)
-            if eta_match:
-                eta = f"ETA: {eta_match.group(1)}"
+        # Скорость
+        speed = ""
+        speed_match = re.search(speed_pattern, line)
+        if speed_match:
+            speed_val = speed_match.group(1)
+            speed_unit = speed_match.group(2)
+            speed = f"{speed_val} {speed_unit}/s"
 
-            logger.debug(f"_parse_progress: line={line[:80]}... percent={percent} size={size_info} speed={speed} eta={eta}")
-            return (percent, size_info, speed, eta)
-        
-        # Логирование если строка не распарсена (для отладки)
-        if '[download]' in line or '%' in line:
-            logger.debug(f"_parse_progress: NO MATCH: {line[:80]}...")
-        
-        return None
+        # ETA
+        eta = ""
+        eta_match = re.search(eta_pattern, line)
+        if eta_match:
+            eta = f"ETA: {eta_match.group(1)}"
+
+        logger.debug(f"_parse_progress: line={line[:80]}... percent={percent} size={size_info} speed={speed} eta={eta}")
+        return (percent, size_info, speed, eta)
     
     def download(self, url: str) -> bool:
         """
@@ -241,69 +251,126 @@ class YouTubeDownloader:
 
         try:
             # Используем список аргументов без shell=True для безопасности
-            # Создаём процесс с чтением вывода в binary режиме
-            # Это позволяет корректно обрабатывать русские символы
+            # Важно: yt-dlp выводит прогресс в stderr, логи в stdout
+            # Читаем stderr отдельно для захвата прогресса в реальном времени
             self._process = subprocess.Popen(
                 cmd,
                 shell=False,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                # Не используем text=True - читаем как binary
+                stderr=subprocess.PIPE,
+                # Небуферизованный вывод для чтения в реальном времени
+                bufsize=0,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
 
             logger.debug(f"download: Process PID = {self._process.pid}")
 
-            if self._process.stdout:
-                line_count = 0
-                for line in self._process.stdout:
-                    if self._cancelled:
-                        logger.warning("download: Отмена пользователем")
-                        self._process.kill()
-                        self._log("Загрузка отменена пользователем", 'warning')
-                        return False
+            # Читаем stderr в отдельном потоке для прогресса
+            stderr_queue = queue.Queue()
 
-                    # Декодируем binary строку в UTF-8
-                    # yt-dlp выводит в OEM кодировке, но большинство символов совместимы
+            def read_stderr():
+                """Чтение stderr в отдельном потоке."""
+                if self._process and self._process.stderr:
                     try:
-                        # Пробуем декодировать как UTF-8
-                        line_str = line.decode('utf-8').strip()
-                    except UnicodeDecodeError:
+                        for line in self._process.stderr:
+                            if not self._cancelled:
+                                stderr_queue.put(line)
+                    except Exception as e:
+                        logger.error(f"read_stderr error: {e}")
+                stderr_queue.put(None)  # Сигнал окончания
+
+            stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+            stderr_thread.start()
+
+            line_count = 0
+            last_progress_line = ""
+
+            # Основной цикл чтения
+            while True:
+                if self._cancelled:
+                    logger.warning("download: Отмена пользователем")
+                    self._process.kill()
+                    self._log("Загрузка отменена пользователем", 'warning')
+                    return False
+
+                # Проверяем stderr (прогресс)
+                try:
+                    line = stderr_queue.get(timeout=0.1)
+                    if line is not None:
                         try:
-                            # Если не UTF-8, пробуем cp1251 (Windows Cyrillic)
-                            line_str = line.decode('cp1251').strip()
+                            line_str = line.decode('utf-8').strip()
                         except UnicodeDecodeError:
-                            # Если всё ещё ошибка, используем replace
-                            line_str = line.decode('utf-8', errors='replace').strip()
+                            try:
+                                line_str = line.decode('cp1251').strip()
+                            except UnicodeDecodeError:
+                                line_str = line.decode('utf-8', errors='replace').strip()
 
-                    if not line_str:
-                        continue
+                        if line_str:
+                            line_count += 1
+                            progress = self._parse_progress(line_str)
+                            if progress:
+                                percent, info, speed, eta = progress
+                                progress_info = info
+                                if speed or eta:
+                                    parts = [info]
+                                    if speed:
+                                        parts.append(f" | {speed}")
+                                    if eta:
+                                        parts.append(f" | {eta}")
+                                    progress_info = "".join(parts)
+                                self._progress(percent, progress_info)
+                                last_progress_line = line_str
+                            elif line_str != last_progress_line:
+                                self._log(line_str)
+                except queue.Empty:
+                    pass
 
-                    line_count += 1
+                # Проверяем stdout (логи)
+                if self._process.stdout:
+                    try:
+                        line = self._process.stdout.read(1)
+                        if line:
+                            # Читаем до конца строки
+                            while True:
+                                next_char = self._process.stdout.read(1)
+                                if not next_char or next_char == b'\n':
+                                    break
+                                line += next_char
+                            try:
+                                line_str = line.decode('utf-8').strip()
+                            except UnicodeDecodeError:
+                                line_str = line.decode('cp1251', errors='replace').strip()
+                            if line_str and '[download]' not in line_str:
+                                self._log(line_str)
+                    except Exception:
+                        pass
 
-                    # Логирование каждой 10-й строки для отладки
-                    if line_count % 10 == 0:
-                        logger.debug(f"download: Строка {line_count}: {line_str[:50]}...")
+                # Проверяем завершение процесса
+                return_code = self._process.poll()
+                if return_code is not None:
+                    break
 
-                    progress = self._parse_progress(line_str)
-                    if progress:
-                        percent, info, speed, eta = progress
-                        # Формируем полную информацию для отображения
-                        progress_info = info
-                        if speed or eta:
-                            parts = [info]
-                            if speed:
-                                parts.append(f" | {speed}")
-                            if eta:
-                                parts.append(f" | {eta}")
-                            progress_info = "".join(parts)
-                        self._progress(percent, progress_info)
-                    else:
-                        # Логируем все сообщения от yt-dlp
-                        # Текст уже в UTF-8, дополнительная конвертация не нужна
-                        self._log(line_str)
+            # Ждём завершения потока stderr
+            stderr_thread.join(timeout=2.0)
 
-                logger.debug(f"download: Всего строк вывода: {line_count}")
+            # Обрабатываем оставшиеся строки из очереди
+            while not stderr_queue.empty():
+                try:
+                    line = stderr_queue.get_nowait()
+                    if line and line is not None:
+                        try:
+                            line_str = line.decode('utf-8').strip()
+                        except UnicodeDecodeError:
+                            line_str = line.decode('cp1251', errors='replace').strip()
+                        if line_str:
+                            progress = self._parse_progress(line_str)
+                            if progress:
+                                percent, info, speed, eta = progress
+                                self._progress(percent, info)
+                except queue.Empty:
+                    break
+
+            logger.debug(f"download: Всего строк вывода: {line_count}")
 
             return_code = self._process.wait()
             logger.debug(f"download: Return code = {return_code}")
