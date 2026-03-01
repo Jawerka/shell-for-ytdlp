@@ -10,9 +10,6 @@ import os
 import re
 import subprocess
 import logging
-import shlex
-import threading
-import queue
 from typing import Callable, Optional, Tuple, List
 
 from .config import ConfigManager
@@ -251,126 +248,56 @@ class YouTubeDownloader:
 
         try:
             # Используем список аргументов без shell=True для безопасности
-            # Важно: yt-dlp выводит прогресс в stderr, логи в stdout
-            # Читаем stderr отдельно для захвата прогресса в реальном времени
             self._process = subprocess.Popen(
                 cmd,
                 shell=False,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                # Небуферизованный вывод для чтения в реальном времени
-                bufsize=0,
+                stderr=subprocess.STDOUT,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
-
+            
             logger.debug(f"download: Process PID = {self._process.pid}")
 
-            # Читаем stderr в отдельном потоке для прогресса
-            stderr_queue = queue.Queue()
+            if self._process.stdout:
+                line_count = 0
+                for line in self._process.stdout:
+                    if self._cancelled:
+                        logger.warning("download: Отмена пользователем")
+                        self._process.kill()
+                        self._log("Загрузка отменена пользователем", 'warning')
+                        return False
 
-            def read_stderr():
-                """Чтение stderr в отдельном потоке."""
-                if self._process and self._process.stderr:
-                    try:
-                        for line in self._process.stderr:
-                            if not self._cancelled:
-                                stderr_queue.put(line)
-                    except Exception as e:
-                        logger.error(f"read_stderr error: {e}")
-                stderr_queue.put(None)  # Сигнал окончания
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    line_count += 1
+                    
+                    # Логирование каждой 10-й строки для отладки
+                    if line_count % 10 == 0:
+                        logger.debug(f"download: Строка {line_count}: {line[:50]}...")
 
-            stderr_thread = threading.Thread(target=read_stderr, daemon=True)
-            stderr_thread.start()
-
-            line_count = 0
-            last_progress_line = ""
-
-            # Основной цикл чтения
-            while True:
-                if self._cancelled:
-                    logger.warning("download: Отмена пользователем")
-                    self._process.kill()
-                    self._log("Загрузка отменена пользователем", 'warning')
-                    return False
-
-                # Проверяем stderr (прогресс)
-                try:
-                    line = stderr_queue.get(timeout=0.1)
-                    if line is not None:
-                        try:
-                            line_str = line.decode('utf-8').strip()
-                        except UnicodeDecodeError:
-                            try:
-                                line_str = line.decode('cp1251').strip()
-                            except UnicodeDecodeError:
-                                line_str = line.decode('utf-8', errors='replace').strip()
-
-                        if line_str:
-                            line_count += 1
-                            progress = self._parse_progress(line_str)
-                            if progress:
-                                percent, info, speed, eta = progress
-                                progress_info = info
-                                if speed or eta:
-                                    parts = [info]
-                                    if speed:
-                                        parts.append(f" | {speed}")
-                                    if eta:
-                                        parts.append(f" | {eta}")
-                                    progress_info = "".join(parts)
-                                self._progress(percent, progress_info)
-                                last_progress_line = line_str
-                            elif line_str != last_progress_line:
-                                self._log(line_str)
-                except queue.Empty:
-                    pass
-
-                # Проверяем stdout (логи)
-                if self._process.stdout:
-                    try:
-                        line = self._process.stdout.read(1)
-                        if line:
-                            # Читаем до конца строки
-                            while True:
-                                next_char = self._process.stdout.read(1)
-                                if not next_char or next_char == b'\n':
-                                    break
-                                line += next_char
-                            try:
-                                line_str = line.decode('utf-8').strip()
-                            except UnicodeDecodeError:
-                                line_str = line.decode('cp1251', errors='replace').strip()
-                            if line_str and '[download]' not in line_str:
-                                self._log(line_str)
-                    except Exception:
-                        pass
-
-                # Проверяем завершение процесса
-                return_code = self._process.poll()
-                if return_code is not None:
-                    break
-
-            # Ждём завершения потока stderr
-            stderr_thread.join(timeout=2.0)
-
-            # Обрабатываем оставшиеся строки из очереди
-            while not stderr_queue.empty():
-                try:
-                    line = stderr_queue.get_nowait()
-                    if line and line is not None:
-                        try:
-                            line_str = line.decode('utf-8').strip()
-                        except UnicodeDecodeError:
-                            line_str = line.decode('cp1251', errors='replace').strip()
-                        if line_str:
-                            progress = self._parse_progress(line_str)
-                            if progress:
-                                percent, info, speed, eta = progress
-                                self._progress(percent, info)
-                except queue.Empty:
-                    break
-
-            logger.debug(f"download: Всего строк вывода: {line_count}")
+                    progress = self._parse_progress(line)
+                    if progress:
+                        percent, info, speed, eta = progress
+                        # Формируем полную информацию для отображения
+                        progress_info = info
+                        if speed or eta:
+                            parts = [info]
+                            if speed:
+                                parts.append(f" | {speed}")
+                            if eta:
+                                parts.append(f" | {eta}")
+                            progress_info = "".join(parts)
+                        self._progress(percent, progress_info)
+                    else:
+                        # Логируем все сообщения от yt-dlp
+                        self._log(line)
+                
+                logger.debug(f"download: Всего строк вывода: {line_count}")
 
             return_code = self._process.wait()
             logger.debug(f"download: Return code = {return_code}")

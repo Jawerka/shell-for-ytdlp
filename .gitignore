@@ -50,6 +50,13 @@ temp
 !/utilities/yt-dlp.exe
 !/utilities/ffmpeg.exe
 
+# SFX (звуковые файлы)
+/ui/sfx/*.wav
+
+# Загруженные видео (игнорируем все .mp4, .webm в корне)
+/*.mp4
+/*.webm
+
 # macOS
 .DS_Store
 
