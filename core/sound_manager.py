@@ -45,8 +45,10 @@ class SoundManager:
 
         # Получить путь к корню проекта
         if hasattr(sys, '_MEIPASS'):
-            self._project_root = os.path.dirname(sys.executable)
+            # PyInstaller: файлы извлечены во временную папку
+            self._project_root = sys._MEIPASS
         else:
+            # Разработка: корень проекта
             self._project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
         logger.debug(f"SoundManager инициализирован (enabled={enabled}, root={self._project_root})")
