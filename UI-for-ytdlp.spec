@@ -24,11 +24,8 @@ icon_path = os.path.join(os.getcwd(), 'icon.ico')
 datas = (
     collect_data_files('resources') +
     collect_data_files('core') +
-    collect_data_files('ui') +
-    [('icon.ico', 'icon.ico')] +
-    # Звуковые файлы
-    [('ui/sfx/start-dl.wav', 'ui/sfx/start-dl.wav'),
-     ('ui/sfx/end-dl.wav', 'ui/sfx/end-dl.wav')]
+    collect_data_files('ui') +  # Включая sfx/*.wav
+    [('icon.ico', 'icon.ico')]
 )
 
 # Скрытые импорты
