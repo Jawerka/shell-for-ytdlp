@@ -25,7 +25,10 @@ datas = (
     collect_data_files('resources') +
     collect_data_files('core') +
     collect_data_files('ui') +
-    [('icon.ico', 'icon.ico')]
+    [('icon.ico', 'icon.ico')] +
+    # Звуковые файлы
+    [('ui/sfx/start-dl.wav', 'ui/sfx/start-dl.wav'),
+     ('ui/sfx/end-dl.wav', 'ui/sfx/end-dl.wav')]
 )
 
 # Скрытые импорты
