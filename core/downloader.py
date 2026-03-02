@@ -55,11 +55,14 @@ class YouTubeDownloader:
         self.progress_callback = progress_callback
         self._process: Optional[subprocess.Popen] = None
         self._cancelled = False
+        self._logs_buffer: List[str] = []  # Буфер для логирования ошибок
         logger.debug(f"YouTubeDownloader: DOWNLOAD_PATH = {config.get('DOWNLOAD_PATH')}")
         logger.debug(f"YouTubeDownloader: YTDLP_PATH = {config.get('YTDLP_PATH')}")
-    
+
     def _log(self, message: str, level: str = 'info') -> None:
         """Внутренний метод логирования."""
+        # Сохраняем в буфер для анализа ошибок
+        self._logs_buffer.append(message)
         if self.log_callback:
             self.log_callback(message, level)
     
@@ -223,14 +226,22 @@ class YouTubeDownloader:
             True если загрузка успешна
         """
         logger.debug(f"download: Начало загрузки URL = {url[:50]}...")
-        
+
         self._cancelled = False
+        self._logs_buffer = []  # Очищаем буфер перед загрузкой
+        
         download_path = self.config.get('DOWNLOAD_PATH', '')
         ytdlp_path = self.config.get('YTDLP_PATH', '')
-        
+
         logger.debug(f"download: download_path = {download_path}")
         logger.debug(f"download: ytdlp_path = {ytdlp_path}")
         logger.debug(f"download: ytdlp exists = {os.path.exists(ytdlp_path)}")
+        
+        # Проверка пути сохранения
+        if not download_path or not os.path.exists(download_path):
+            logger.error(f"download: Путь сохранения не существует: {download_path}")
+            self._log(f"Путь сохранения не существует: {download_path}", 'error')
+            return False
 
         if not os.path.exists(ytdlp_path):
             logger.error(f"download: yt-dlp не найден по пути {ytdlp_path}")
@@ -314,15 +325,27 @@ class YouTubeDownloader:
 
             return_code = self._process.wait()
             logger.debug(f"download: Return code = {return_code}")
-            
+
             if return_code == 0:
                 logger.debug("download: Загрузка успешна")
                 self._log("Загрузка завершена успешно", 'success')
                 self._progress(100.0, "Завершено")
                 return True
             else:
+                # Подробное логирование ошибок
                 logger.error(f"download: Ошибка, return code = {return_code}")
                 self._log(f"yt-dlp завершил с кодом {return_code}", 'error')
+                
+                # Логируем последние ошибки из вывода
+                error_lines = [
+                    line for line in self._logs_buffer 
+                    if 'ERROR' in line or 'Error' in line or 'failed' in line.lower() or 'unable' in line.lower()
+                ]
+                if error_lines:
+                    logger.error(f"download: Ошибки в выводе: {error_lines[:5]}")
+                    for err_line in error_lines[:3]:  # Показываем первые 3 ошибки
+                        self._log(f"Ошибка: {err_line}", 'error')
+                
                 return False
 
         except KeyboardInterrupt:
@@ -338,7 +361,8 @@ class YouTubeDownloader:
         finally:
             logger.debug("download: Очистка process")
             self._process = None
-    
+            self._logs_buffer = []  # Очищаем буфер после загрузки
+
     def cancel(self) -> None:
         """Отменить загрузку."""
         self._cancelled = True
