@@ -675,7 +675,8 @@ class MainWindow(ctk.CTk):
                 # ffmpeg не обновляем если файлы уже распакованы
                 if 'ffmpeg' in save_name.lower():
                     ffmpeg_file_list = ['ffmpeg.exe', 'ffplay.exe', 'ffprobe.exe']
-                    ffmpeg_exists = any(
+                    # Проверяем наличие ВСЕХ файлов ffmpeg
+                    ffmpeg_exists = all(
                         os.path.exists(os.path.join(utilities_path, ff_file))
                         for ff_file in ffmpeg_file_list
                     )
@@ -683,6 +684,15 @@ class MainWindow(ctk.CTk):
                         logger.debug(f"_update_utilities: ffmpeg уже распакован, пропускаем")
                         self.after(0, lambda sn=save_name: self.log_viewer.success(f"{sn} актуален"))
                         continue
+                    else:
+                        # Логируем каких файлов не хватает
+                        missing_files = [
+                            ff_file for ff_file in ffmpeg_file_list
+                            if not os.path.exists(os.path.join(utilities_path, ff_file))
+                        ]
+                        logger.debug(f"_update_utilities: Отсутствуют ffmpeg утилиты: {missing_files}")
+                        self.after(0, lambda mf=missing_files: self.log_viewer.info(
+                            f"Распаковка ffmpeg (отсутствуют: {', '.join(mf)})"))
 
                 if check_needs_update(url, save_path):
                     self.after(0, lambda: self.log_viewer.info(f"Загрузка {save_name}..."))
