@@ -44,11 +44,9 @@ temp
 /test_downloads/*
 *.part
 
-# Утилиты (скачанные)
+# Утилиты (скачанные) - ИГНОРИРУЕМ ВСЁ кроме .gitkeep
 /utilities/*
 !/utilities/.gitkeep
-!/utilities/yt-dlp.exe
-!/utilities/ffmpeg.exe
 
 # Загруженные видео (игнорируем все .mp4, .webm в корне)
 /*.mp4
