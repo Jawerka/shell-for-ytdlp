@@ -141,8 +141,8 @@ def update_utilities(
 
             # Если это ffmpeg — проверяем наличие unpacked файлов
             if 'zip' in save_name and 'ffmpeg' in save_name:
-                # Проверяем, распакован ли ffmpeg
-                ffmpeg_exists = any(
+                # Проверяем, распакован ли ffmpeg (нужны ВСЕ три файла)
+                ffmpeg_exists = all(
                     os.path.exists(os.path.join(work_path, ff_file))
                     for ff_file in ffmpeg_file_list
                 )

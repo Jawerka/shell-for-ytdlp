@@ -697,8 +697,12 @@ class MainWindow(ctk.CTk):
                         logger.debug(f"_update_utilities: Отсутствуют ffmpeg утилиты: {missing_files}")
                         self.after(0, lambda mf=missing_files: self.log_viewer.info(
                             f"Распаковка ffmpeg (отсутствуют: {', '.join(mf)})"))
+                        # Форсируем загрузку если файлы отсутствуют
+                        force_update = True
+                else:
+                    force_update = False
 
-                if check_needs_update(url, save_path):
+                if force_update or check_needs_update(url, save_path):
                     self.after(0, lambda: self.log_viewer.info(f"Загрузка {save_name}..."))
 
                     def _progress_wrapper(uploaded, total, fn=save_name):
