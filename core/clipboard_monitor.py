@@ -179,15 +179,27 @@ class ClipboardMonitor:
 
         text = current_content.strip()
 
-        # Проверяем является ли текст поддерживаемым URL
-        if is_supported_video_url(text):
-            logger.info(f"ClipboardMonitor: обнаружен URL: {text[:100]}")
+        # Пропускаем слишком короткие строки (менее 10 символов)
+        if len(text) < 10:
+            return
 
-            if self.on_url_detected:
-                try:
-                    self.on_url_detected(text)
-                except Exception as e:
-                    logger.error(f"ClipboardMonitor: ошибка callback: {e}", exc_info=True)
-        else:
-            # Логируем только для отладки, чтобы не спамить
-            logger.debug(f"ClipboardMonitor: содержимое не является поддерживаемым URL: {text[:50]}...")
+        # Пропускаем строки которые явно не URL (содержат пробелы, многострочные)
+        if '\n' in text or '  ' in text:
+            logger.debug(f"ClipboardMonitor: пропуск многострочного текста: {text[:50]}...")
+            return
+
+        # Проверяем является ли текст поддерживаемым URL
+        try:
+            if is_supported_video_url(text):
+                logger.info(f"ClipboardMonitor: обнаружен URL: {text[:100]}")
+
+                if self.on_url_detected:
+                    try:
+                        self.on_url_detected(text)
+                    except Exception as e:
+                        logger.error(f"ClipboardMonitor: ошибка callback: {e}", exc_info=True)
+            else:
+                # Логируем только для отладки, чтобы не спамить
+                logger.debug(f"ClipboardMonitor: содержимое не является поддерживаемым URL: {text[:50]}...")
+        except Exception as e:
+            logger.error(f"ClipboardMonitor: ошибка проверки URL: {e}", exc_info=True)

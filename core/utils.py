@@ -230,28 +230,31 @@ def is_supported_video_url(url: str) -> bool:
 
     url = url.strip().lower()
 
+    # Быстрая отсечка: URL должен начинаться с http:// или https://
+    if not (url.startswith('http://') or url.startswith('https://')):
+        return False
+
     # Извлекаем домен из URL
     try:
         # Убираем протокол
         if '://' in url:
             url_without_protocol = url.split('://')[1]
         else:
-            url_without_protocol = url
+            return False  # Нет протокола - не URL
 
         # Получаем домен (часть до первого /)
         domain = url_without_protocol.split('/')[0].lower()
+
+        # Проверка: домен не должен быть пустым
+        if not domain:
+            return False
 
         # Проверяем наличие домена в списке поддерживаемых
         for supported_domain in SUPPORTED_VIDEO_DOMAINS:
             if domain == supported_domain or domain.endswith('.' + supported_domain):
                 return True
 
-        # Дополнительная проверка для коротких доменов (youtu.be, b23.tv, etc.)
-        for supported_domain in SUPPORTED_VIDEO_DOMAINS:
-            if supported_domain in domain:
-                return True
-
-    except (IndexError, ValueError):
+    except (IndexError, ValueError, AttributeError):
         return False
 
     return False

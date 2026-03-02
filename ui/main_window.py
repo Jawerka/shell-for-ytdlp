@@ -160,27 +160,31 @@ class MainWindow(ctk.CTk):
         Args:
             url: Обнаруженный URL
         """
-        # Проверяем, не загружается ли уже что-то
-        if self.is_downloading:
-            self.log_viewer.info(f"Обнаружена ссылка в буфере: {url[:80]}... (загрузка уже идёт)")
-            return
+        try:
+            # Проверяем, не загружается ли уже что-то
+            if self.is_downloading:
+                self.log_viewer.info(f"Обнаружена ссылка в буфере: {url[:80]}... (загрузка уже идёт)")
+                return
 
-        # Проверяем, не та же ли это ссылка, что уже в поле ввода
-        current_url = self.url_input.get_url()
-        if current_url and current_url.strip() == url.strip():
-            return
+            # Проверяем, не та же ли это ссылка, что уже в поле ввода
+            current_url = self.url_input.get_url()
+            if current_url and current_url.strip() == url.strip():
+                return
 
-        # Проверяем, не загружали ли уже этот URL последним
-        last_url = self.config_manager.get('LAST_DOWNLOADED_URL', '')
-        if last_url and last_url.strip() == url.strip():
-            self.log_viewer.info(f"📋 Ссылка уже была загружена: {url[:80]}... (пропуск)")
-            return
+            # Проверяем, не загружали ли уже этот URL последним
+            last_url = self.config_manager.get('LAST_DOWNLOADED_URL', '')
+            if last_url and last_url.strip() == url.strip():
+                self.log_viewer.info(f"📋 Ссылка уже была загружена: {url[:80]}... (пропуск)")
+                return
 
-        # Устанавливаем URL и начинаем загрузку
-        self.url_input.set_url(url)
-        self.log_viewer.info(f"📋 Обнаружена новая ссылка: {url[:80]}...")
-        self.log_viewer.info("Начинаю загрузку автоматически...")
-        self.after(500, self._start_download)
+            # Устанавливаем URL и начинаем загрузку
+            self.url_input.set_url(url)
+            self.log_viewer.info(f"📋 Обнаружена новая ссылка: {url[:80]}...")
+            self.log_viewer.info("Начинаю загрузку автоматически...")
+            self.after(500, self._start_download)
+        except Exception as e:
+            logger.error(f"_handle_clipboard_url: Ошибка обработки URL: {e}", exc_info=True)
+            self.log_viewer.error(f"Ошибка обработки ссылки: {e}")
 
     def _check_clipboard_and_download(self) -> None:
         """Проверить буфер обмена и начать загрузку если есть URL."""
