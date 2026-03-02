@@ -248,17 +248,17 @@ class YouTubeDownloader:
 
         try:
             # Используем список аргументов без shell=True для безопасности
+            # Создаём процесс с чтением вывода в binary режиме
+            # Это позволяет корректно обрабатывать русские символы
             self._process = subprocess.Popen(
                 cmd,
                 shell=False,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
+                # Не используем text=True - читаем как binary
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
-            
+
             logger.debug(f"download: Process PID = {self._process.pid}")
 
             if self._process.stdout:
@@ -270,17 +270,29 @@ class YouTubeDownloader:
                         self._log("Загрузка отменена пользователем", 'warning')
                         return False
 
-                    line = line.strip()
-                    if not line:
+                    # Декодируем binary строку в UTF-8
+                    # yt-dlp выводит в OEM кодировке, но большинство символов совместимы
+                    try:
+                        # Пробуем декодировать как UTF-8
+                        line_str = line.decode('utf-8').strip()
+                    except UnicodeDecodeError:
+                        try:
+                            # Если не UTF-8, пробуем cp1251 (Windows Cyrillic)
+                            line_str = line.decode('cp1251').strip()
+                        except UnicodeDecodeError:
+                            # Если всё ещё ошибка, используем replace
+                            line_str = line.decode('utf-8', errors='replace').strip()
+
+                    if not line_str:
                         continue
-                    
+
                     line_count += 1
-                    
+
                     # Логирование каждой 10-й строки для отладки
                     if line_count % 10 == 0:
-                        logger.debug(f"download: Строка {line_count}: {line[:50]}...")
+                        logger.debug(f"download: Строка {line_count}: {line_str[:50]}...")
 
-                    progress = self._parse_progress(line)
+                    progress = self._parse_progress(line_str)
                     if progress:
                         percent, info, speed, eta = progress
                         # Формируем полную информацию для отображения
@@ -295,8 +307,9 @@ class YouTubeDownloader:
                         self._progress(percent, progress_info)
                     else:
                         # Логируем все сообщения от yt-dlp
-                        self._log(line)
-                
+                        # Текст уже в UTF-8, дополнительная конвертация не нужна
+                        self._log(line_str)
+
                 logger.debug(f"download: Всего строк вывода: {line_count}")
 
             return_code = self._process.wait()
