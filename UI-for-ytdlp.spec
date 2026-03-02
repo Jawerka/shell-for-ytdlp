@@ -20,11 +20,11 @@ app_name = 'UI-for-ytdlp'
 # Используем getcwd(), т.к. __file__ недоступен в spec-файле при сборке
 icon_path = os.path.join(os.getcwd(), 'icon.ico')
 
-# Собираем данные из resources и utilities
+# Собираем данные из модулей
+# resources/ директория не существует - убираем collect_data_files('resources')
 datas = (
-    collect_data_files('resources') +
     collect_data_files('core') +
-    collect_data_files('ui') +  # Включая sfx/*.wav
+    collect_data_files('ui') +  # Включая sfx/*.wav если существуют
     [('icon.ico', 'icon.ico')]
 )
 

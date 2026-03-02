@@ -1,9 +1,13 @@
 <div align="center">
     <h1>UI-for-ytdlp</h1>
-    <img src="https://github.com/Jawerka/shell-for-ytdlp/blob/master/icon.png?raw=true" alt="UI-for-ytdlp icon" width="200" height="200" />
+    <img src="https://raw.githubusercontent.com/Jawerka/UI-for-ytdlp/main/icon.png" alt="UI-for-ytdlp icon" width="200" height="200" />
 </div>
 
 **Modern GUI for yt-dlp built with customtkinter.**
+
+![Version](https://img.shields.io/badge/version-1.0-blue)
+![Python](https://img.shields.io/badge/python-3.10+-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
 
@@ -16,14 +20,8 @@
 - ⏭️ Продолжение прерванных загрузок
 - 🍪 Поддержка cookies.txt
 - 📋 Авто-определение URL из буфера обмена
+- 🔔 Звуковые уведомления (начало/завершение загрузки)
 - 🎨 Современный тёмный интерфейс
-
-### 🎯 Улучшения (v2.0):
-- **Дизайн-система**: Единый стиль скруглений (8px), обводки (1px, #3A3D42)
-- **Цветовая палитра**: Голубые акценты (#00A8E8) вместо синих
-- **Векторные иконки**: Unicode-символы вместо PNG-файлов
-- **Модульная архитектура**: Разделение на `core/` и `ui/` модули
-- **Система отступов**: Все отступы кратны 4px
 
 ---
 
@@ -91,19 +89,40 @@ pyinstaller --clean --noconfirm UI-for-ytdlp.spec
 ```
 UI-for-ytdlp/
 ├── main.py                 # Точка входа
-├── core/                   # Ядро приложения
-│   ├── theme.py           # Дизайн-система
+├── build.py                # Скрипт сборки
+├── UI-for-ytdlp.spec       # Spec-файл PyInstaller
+├── requirements.txt        # Зависимости Python
+├── README.md              # Документация
+├── .gitignore             # Git ignore
+├── icon.ico               # Иконка приложения
+├── core/                  # Ядро приложения
+│   ├── theme.py           # Дизайн-система и цвета
 │   ├── icons.py           # Менеджер иконок
-│   ├── utils.py           # Утилиты
-│   ├── logger.py          # Логгер
-│   ├── config.py          # Конфигурация
-│   ├── downloader.py      # Загрузчик
-│   └── updater.py         # Обновления
-├── ui/                     # Пользовательский интерфейс
+│   ├── utils.py           # Утилиты (валидация URL, буфер обмена)
+│   ├── logger.py          # Логгер для GUI
+│   ├── config.py          # Менеджер конфигурации
+│   ├── downloader.py      # Загрузчик через yt-dlp
+│   ├── updater.py         # Обновление утилит
+│   ├── notifications.py   # Системные уведомления
+│   ├── sound_manager.py   # Звуковые эффекты
+│   ├── clipboard_monitor.py # Мониторинг буфера обмена
+│   └── deno_installer.py  # Установка deno (опционально)
+├── ui/                    # Пользовательский интерфейс
 │   ├── main_window.py     # Главное окно
+│   ├── layout_config.py   # Настройки разметки UI
+│   ├── tooltip.py         # Всплывающие подсказки
 │   └── components/        # UI компоненты
-├── resources/              # Ресурсы
-└── utilities/              # Утилиты (yt-dlp, ffmpeg)
+│       ├── url_input.py   # Поле ввода URL
+│       ├── log_viewer.py  # Просмотр логов
+│       ├── progress_bar.py # Прогресс-бар
+│       └── settings_dialog.py # Диалог настроек
+├── utilities/             # Утилиты (загружаются автоматически)
+│   ├── yt-dlp.exe        # yt-dlp
+│   ├── ffmpeg.exe        # ffmpeg
+│   └── cookies.txt       # Cookies (опционально)
+└── tests/                 # Тесты
+    ├── conftest.py       # Конфигурация pytest
+    └── unit/             # Модульные тесты
 ```
 
 ---
@@ -111,25 +130,55 @@ UI-for-ytdlp/
 ## 🎨 Дизайн-система
 
 ### Цветовая палитра:
-| Цвет | Значение | Описание |
-|------|----------|----------|
-| Primary | `#00A8E8` | Голубой акцент |
-| Primary Hover | `#0096D0` | При наведении |
-| Background | `#141517` | Основной фон |
-| Card | `#1E1F22` | Фон карточек |
-| Border | `#3A3D42` | Обводка |
-| Text | `#E3E5E8` | Основной текст |
+| Цвет | Значение | Hex |
+|------|----------|-----|
+| Primary | Основной акцент | `#00A8E8` |
+| Primary Hover | При наведении | `#0096D0` |
+| Background | Фон окна | `#141517` |
+| Card | Фон карточек | `#1E1F22` |
+| Border | Обводка | `#3A3D42` |
+| Text | Основной текст | `#E3E5E8` |
+| Text Muted | Приглушённый текст | `#9CA0A6` |
+
+### Размеры элементов:
+| Элемент | Размер |
+|---------|--------|
+| Кнопки | 42×40 px |
+| Поле URL | 340×42 px |
+| Поле пути | 380×28 px |
+| Прогресс-бар | 50 px высота |
 
 ### Скругления:
-- Все элементы: **8px**
+- Все элементы: **14px**
 
-### Отступы:
-- XS: 4px, SM: 8px, MD: 12px, LG: 16px, XL: 24px, XXL: 32px
+### Отступы (Spacing):
+- XS: 4px, SM: 8px, MD: 11px, LG: 16px, XL: 24px, XXL: 32px
 
 ---
 
 ## ⚠️ Известные проблемы:
-- Нет поддержки пробелов в пути запуска (будет исправлено)
+- При загрузке в папку с пробелами в пути могут возникнуть проблемы (планируется исправление)
+
+---
+
+## 🧪 Тестирование
+
+### Запуск тестов:
+```bash
+# Запустить все тесты
+pytest tests/ -v
+
+# Запустить тесты с покрытием
+pytest tests/ -v --cov=core --cov=ui
+
+# Запустить конкретный тест
+pytest tests/unit/test_encoding.py -v
+```
+
+### Покрытие тестами:
+- `test_config.py` — тесты конфигурации
+- `test_utils.py` — тесты утилит (валидация URL, буфер обмена)
+- `test_encoding.py` — тесты кодировки
 
 ---
 
@@ -138,18 +187,25 @@ UI-for-ytdlp/
 - [FFmpeg](https://github.com/FFmpeg/FFmpeg)
 - [SponsorBlock](https://wiki.sponsor.ajay.app/)
 - [customtkinter](https://github.com/TomSchimansky/CustomTkinter)
+- [pygame](https://github.com/pygame-community/pygame-ce) — звуковые уведомления
 
 ---
 
 ## 📝 Changelog
 
-### v2.0 (2026-02-23)
+### v1.0 (2026-03-01)
+- ✨ Мониторинг буфера обмена с автозагрузкой
+- 🔔 Звуковые уведомления (начало/завершение загрузки)
+- 🛡️ Защита от повторной загрузки URL
+- 🔧 Улучшена обработка ошибок ffmpeg
+- 🐛 Исправлено зависание при некорректных данных в буфере
+- 🐛 Исправлена кодировка вывода yt-dlp
+- 📝 Обновлена документация
+
+### v0.9 (2026-02-23)
 - ✨ Полный рефакторинг архитектуры
-- 🎨 Новая дизайн-система с голубыми акцентами
+- 🎨 Дизайн-система с голубыми акцентами
 - 🔤 Unicode-иконки вместо PNG
 - 📦 Модульная структура (core/, ui/)
 - 📏 Система отступов Spacing
 - 🛠️ Улучшена обработка ошибок
-
-### v1.0
-- Базовая версия
