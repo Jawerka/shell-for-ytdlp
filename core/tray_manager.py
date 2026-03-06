@@ -147,9 +147,6 @@ class TrayManager:
         Returns:
             Menu pystray с пунктами
         """
-        # Разделитель
-        separator = MenuItem.SEPARATOR
-
         return Menu(
             # Быстрые переключатели
             MenuItem(
@@ -162,11 +159,11 @@ class TrayManager:
                 self._toggle_sound_enabled,
                 checked=lambda item: self._get_sound_state()
             ),
-            separator,
+            Menu.SEPARATOR,
 
             # Действия
             MenuItem("📋 Вставить ссылку и скачать", self._on_paste_and_download),
-            separator,
+            Menu.SEPARATOR,
 
             MenuItem("⚙ Настройки", self._on_open_settings),
             MenuItem("❌ Выход", self._on_exit),

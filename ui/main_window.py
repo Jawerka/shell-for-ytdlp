@@ -101,6 +101,8 @@ class MainWindow(ctk.CTk):
         self.geometry("740x520")
         self.minsize(740, 520)
         self.configure(fg_color=COLOR_THEME["bg_primary"])
+        
+        # Обработчик закрытия окна (крестик) — полное закрытие
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
         # Установка иконки окна
@@ -820,6 +822,9 @@ class MainWindow(ctk.CTk):
 
         # Esc — отмена загрузки
         self.bind('<Escape>', lambda e: self._cancel_download())
+        
+        # Обработчик сворачивания окна — в трей
+        self.bind('<Unmap>', lambda e: self._on_minimize())
 
     # Drag & Drop требует tkinterdnd2, отключено до установки зависимости
     # def _setup_drag_and_drop(self) -> None:
@@ -834,9 +839,15 @@ class MainWindow(ctk.CTk):
                 self.downloader.cancel()
                 self.log_viewer.warning("Загрузка отменена пользователем")
 
-    def _on_closing(self) -> None:
-        """Обработчик закрытия окна — сворачивание в трей."""
-        # Скрыть окно вместо закрытия
+    def _on_minimize(self) -> None:
+        """Обработчик события сворачивания окна."""
+        # Проверка: окно действительно свёрнуто (не закрыто)
+        if self.state() == 'iconic':
+            self._minimize_to_tray()
+
+    def _minimize_to_tray(self) -> None:
+        """Свернуть окно в трей."""
+        # Скрыть окно
         self.withdraw()
         
         # Создать и показать иконку в трее если ещё не создана
@@ -855,7 +866,29 @@ class MainWindow(ctk.CTk):
         if not self.tray_manager.is_visible():
             self.tray_manager.show()
         
-        logger.debug("_on_closing: Окно свёрнуто в трей")
+        logger.debug("_minimize_to_tray: Окно свёрнуто в трей")
+
+    def _on_closing(self) -> None:
+        """Обработчик закрытия окна (крестик) — полное закрытие приложения."""
+        logger.debug("_on_closing: Закрытие приложения")
+        
+        # Остановить трей если есть
+        if self.tray_manager:
+            self.tray_manager.stop()
+        
+        # Остановить мониторинг буфера обмена
+        if self.clipboard_monitor.is_running():
+            self.clipboard_monitor.stop()
+
+        # Остановить звуковой менеджер
+        self.sound_manager.shutdown()
+
+        # Сохранить конфигурацию
+        self.config_manager.save()
+        logger.debug("_on_closing: Конфигурация сохранена")
+
+        # Закрыть окно
+        self.destroy()
 
     def _restore_from_tray(self) -> None:
         """Восстановить окно из трея (вызывается из главного потока)."""
