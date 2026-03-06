@@ -117,7 +117,7 @@ class TrayManager:
             Icon pystray или None если не удалось создать
         """
         icon_path = self._get_icon_path()
-        
+
         if not icon_path:
             # Создаём заглушку если иконка не найдена
             logger.warning("Создание иконки-заглушки")
@@ -129,7 +129,7 @@ class TrayManager:
             # Убедимся что размер подходящий
             if icon_img.size != (256, 256):
                 icon_img = icon_img.resize((256, 256), Image.Resampling.LANCZOS)
-            
+
             return Icon(
                 "UI-for-ytdlp",
                 icon_img,
@@ -139,6 +139,17 @@ class TrayManager:
         except Exception as e:
             logger.error(f"Ошибка создания иконки: {e}", exc_info=True)
             return None
+
+    def _on_icon_clicked(self, icon: Icon, item: MenuItem) -> None:
+        """
+        Обработчик одинарного клика по иконке - восстановление окна.
+
+        Args:
+            icon: Иконка pystray
+            item: MenuItem
+        """
+        logger.debug("Клик по иконке в трее - восстановление окна")
+        self._safe_callback(self.on_restore)
 
     def _build_menu(self) -> Menu:
         """
@@ -284,11 +295,11 @@ class TrayManager:
 
         try:
             self._icon = self._create_icon()
-            
+
             if self._icon:
-                # Устанавливаем двойной клик для восстановления
-                self._icon.default_action = self._on_restore
-                
+                # Устанавливаем обработчик клика по иконке (восстановление окна)
+                self._icon.default_action = self._on_icon_clicked
+
                 # Запуск в отдельном потоке
                 self._icon.run_detached()
                 self._visible = True
