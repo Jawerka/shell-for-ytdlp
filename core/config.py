@@ -80,6 +80,8 @@ DEFAULT_CONFIG = {
     'COOKIES_PATH': '',
     # Настройки мониторинга буфера обмена
     'CLIPBOARD_MONITORING': False,
+    # Настройки звуковых уведомлений
+    'ENABLE_SOUND_NOTIFICATIONS': True,
     # Последний загруженный URL (для предотвращения повторной загрузки)
     'LAST_DOWNLOADED_URL': '',
 }
@@ -164,6 +166,8 @@ class ConfigManager:
             result['QUESTION_BYPASS'] = False
         if 'ENABLE_NOTIFICATIONS' not in result:
             result['ENABLE_NOTIFICATIONS'] = True
+        if 'ENABLE_SOUND_NOTIFICATIONS' not in result:
+            result['ENABLE_SOUND_NOTIFICATIONS'] = True
 
         return result
     

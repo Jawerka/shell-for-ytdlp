@@ -32,16 +32,22 @@ class SoundManager:
     SOUND_END_DOWNLOAD = 'ui/sfx/end-dl.wav'
     SOUND_ERROR_DOWNLOAD = 'ui/sfx/error-dl.wav'  # Зарезервировано на будущее
 
-    def __init__(self, enabled: bool = True):
+    def __init__(self, enabled: bool = True, config_manager=None):
         """
         Инициализировать менеджер звуковых эффектов.
 
         Args:
             enabled: Включены ли звуковые эффекты (по умолчанию True)
+            config_manager: Менеджер конфигурации для синхронизации (опционально)
         """
         self.enabled = enabled
         self._pygame_initialized = False
         self._lock = threading.Lock()
+
+        # Если передан config_manager, используем настройку из конфига
+        if config_manager:
+            self.enabled = config_manager.get('ENABLE_SOUND_NOTIFICATIONS', enabled)
+            logger.debug(f"SoundManager: синхронизация с конфигом (enabled={self.enabled})")
 
         # Получить путь к корню проекта
         if hasattr(sys, '_MEIPASS'):
@@ -51,7 +57,7 @@ class SoundManager:
             # Разработка: корень проекта
             self._project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-        logger.debug(f"SoundManager инициализирован (enabled={enabled}, root={self._project_root})")
+        logger.debug(f"SoundManager инициализирован (enabled={self.enabled}, root={self._project_root})")
 
     def _get_sound_path(self, relative_path: str) -> Optional[str]:
         """

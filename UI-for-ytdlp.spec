@@ -54,6 +54,10 @@ hiddenimports = [
     'ui.components.log_viewer',
     'ui.components.progress_bar',
     'ui.components.settings_dialog',
+    # Системный трей
+    'pystray',
+    'pystray._icon',
+    'core.tray_manager',
 ]
 
 # Анализ исходного кода

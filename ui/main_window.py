@@ -55,6 +55,8 @@ from ui.layout_config import (
     BUTTON_GAP,
 )
 
+from core.tray_manager import TrayManager
+
 
 class MainWindow(ctk.CTk):
     def __init__(self):
@@ -79,7 +81,10 @@ class MainWindow(ctk.CTk):
         )
 
         # Инициализация менеджера звуковых эффектов
-        self.sound_manager = SoundManager(enabled=True)
+        self.sound_manager = SoundManager(enabled=True, config_manager=self.config_manager)
+
+        # Инициализация менеджера трея (будет создан при сворачивании)
+        self.tray_manager: Optional[TrayManager] = None
 
         setup_theme()
         self._setup_window()
@@ -408,7 +413,12 @@ class MainWindow(ctk.CTk):
         current_cookies_path = self.config_manager.get('COOKIES_PATH', '')
         current_categories = self.config_manager.get('SPONSORBLOCK_REMOVE_LIST', ['sponsor', 'selfpromo'])
 
-        def on_save(cookies_path: Optional[str], categories: List[str], clipboard_monitoring: bool):
+        def on_save(
+            cookies_path: Optional[str], 
+            categories: List[str], 
+            clipboard_monitoring: bool,
+            sound_enabled: bool
+        ):
             # Сохранение cookies path
             self.config_manager.set('COOKIES_PATH', cookies_path if cookies_path else '')
 
@@ -434,6 +444,10 @@ class MainWindow(ctk.CTk):
             self.config_manager.set('CLIPBOARD_MONITORING', clipboard_monitoring)
             self.config_manager.save()
 
+            # Сохранение настройки звуковых уведомлений
+            self.config_manager.set('ENABLE_SOUND_NOTIFICATIONS', sound_enabled)
+            self.config_manager.save()
+
             # Запуск или остановка мониторинга
             if clipboard_monitoring:
                 self.clipboard_monitor.start()
@@ -442,13 +456,21 @@ class MainWindow(ctk.CTk):
                 self.clipboard_monitor.stop()
                 self.log_viewer.info("Мониторинг буфера обмена отключён")
 
+            # Обновление настройки звуков
+            self.sound_manager.set_enabled(sound_enabled)
+            if sound_enabled:
+                self.log_viewer.info("Звуковые уведомления включены")
+            else:
+                self.log_viewer.info("Звуковые уведомления отключены")
+
         clipboard_monitoring_enabled = self.config_manager.get('CLIPBOARD_MONITORING', False)
         dialog = SettingsDialog(
             self,
             current_cookies_path,
             current_categories,
             clipboard_monitoring_enabled,
-            on_save
+            on_save,
+            config_manager=self.config_manager
         )
         dialog.focus()
 
@@ -813,84 +835,72 @@ class MainWindow(ctk.CTk):
                 self.log_viewer.warning("Загрузка отменена пользователем")
 
     def _on_closing(self) -> None:
-        """Обработчик закрытия окна."""
-        # Остановка мониторинга буфера обмена
+        """Обработчик закрытия окна — сворачивание в трей."""
+        # Скрыть окно вместо закрытия
+        self.withdraw()
+        
+        # Создать и показать иконку в трее если ещё не создана
+        if self.tray_manager is None:
+            self.tray_manager = TrayManager(
+                clipboard_monitor=self.clipboard_monitor,
+                sound_manager=self.sound_manager,
+                config_manager=self.config_manager,
+                on_restore=self._restore_from_tray,
+                on_paste_and_download=self._paste_and_download_from_tray,
+                on_open_settings=self._open_settings_from_tray,
+                on_exit=self._exit_application,
+                root_window=self
+            )
+        
+        if not self.tray_manager.is_visible():
+            self.tray_manager.show()
+        
+        logger.debug("_on_closing: Окно свёрнуто в трей")
+
+    def _restore_from_tray(self) -> None:
+        """Восстановить окно из трея (вызывается из главного потока)."""
+        self.deiconify()
+        self.focus_force()
+        if self.tray_manager:
+            self.tray_manager.hide()
+        logger.debug("_restore_from_tray: Окно восстановлено")
+
+    def _paste_and_download_from_tray(self) -> None:
+        """Вставить URL из буфера и начать загрузку (из трея)."""
+        from core.utils import get_clipboard_url
+        
+        url = get_clipboard_url()
+        if url:
+            self.url_input.set_url(url)
+            self.log_viewer.info(f"📋 URL из буфера: {url[:80]}...")
+            self._start_download()
+        else:
+            self.log_viewer.warning("📋 Буфер обмена не содержит URL")
+
+    def _open_settings_from_tray(self) -> None:
+        """Открыть настройки из трея."""
+        # Восстановить окно перед открытием настроек
+        self._restore_from_tray()
+        self.after(200, self._open_settings)
+
+    def _exit_application(self) -> None:
+        """Полный выход из приложения."""
+        logger.debug("_exit_application: Выход из приложения")
+        
+        # Остановить трей
+        if self.tray_manager:
+            self.tray_manager.stop()
+        
+        # Остановить мониторинг
         if self.clipboard_monitor.is_running():
             self.clipboard_monitor.stop()
-
-        # Остановка звукового менеджера
+        
+        # Остановить звук
         self.sound_manager.shutdown()
-
-        # Сохранение конфигурации при закрытии
+        
+        # Сохранить конфиг
         self.config_manager.save()
-        logger.debug("_on_closing: Конфигурация сохранена")
-
-        if self.is_downloading:
-            # Создаём кастомный диалог подтверждения в тёмной теме
-            dialog = ctk.CTkToplevel(self)
-            dialog.title("Загрузка выполняется")
-            dialog.geometry("400x150")
-            dialog.transient(self)
-            dialog.grab_set()
-            
-            # Настройка тёмной темы
-            dialog.configure(fg_color=COLOR_THEME["bg_primary"])
-            
-            # Заголовок
-            title_label = ctk.CTkLabel(
-                dialog,
-                text="Загрузка ещё не завершена",
-                font=ctk.CTkFont(size=14, weight="bold"),
-                text_color=COLOR_THEME["text_primary"]
-            )
-            title_label.pack(pady=(Spacing.LG, Spacing.SM))
-            
-            # Сообщение
-            msg_label = ctk.CTkLabel(
-                dialog,
-                text="Закрыть приложение?",
-                font=ctk.CTkFont(size=12),
-                text_color=COLOR_THEME["text_muted"]
-            )
-            msg_label.pack(pady=(0, Spacing.LG))
-            
-            # Кнопки
-            buttons_frame = ctk.CTkFrame(dialog, fg_color="transparent")
-            buttons_frame.pack(pady=Spacing.SM)
-            
-            def on_cancel():
-                dialog.destroy()
-            
-            def on_ok():
-                if self.downloader:
-                    self.downloader.cancel()
-                dialog.destroy()
-                self.destroy()
-            
-            cancel_btn = ctk.CTkButton(
-                buttons_frame,
-                text="Отмена",
-                width=100,
-                command=on_cancel,
-                fg_color=COLOR_THEME["bg_card"],
-                hover_color=COLOR_THEME["accent"],
-                text_color=COLOR_THEME["text_primary"],
-                font=ctk.CTkFont(size=12),
-                corner_radius=COLOR_THEME["radius_md"],
-            )
-            cancel_btn.pack(side="left", padx=(0, Spacing.SM))
-            
-            ok_btn = ctk.CTkButton(
-                buttons_frame,
-                text="Закрыть",
-                width=100,
-                command=on_ok,
-                fg_color=COLOR_THEME["primary"],
-                hover_color=COLOR_THEME["primary_hover"],
-                text_color=COLOR_THEME["primary_foreground"],
-                font=ctk.CTkFont(size=12),
-                corner_radius=COLOR_THEME["radius_md"],
-            )
-            ok_btn.pack(side="left")
-        else:
-            self.destroy()
+        logger.debug("_exit_application: Конфигурация сохранена")
+        
+        # Закрыть окно
+        self.destroy()

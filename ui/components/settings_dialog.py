@@ -35,9 +35,12 @@ class SettingsDialog(ctk.CTkToplevel):
         cookies_path: Optional[str],
         sponsorblock_categories: List[str],
         clipboard_monitoring: bool = False,
-        on_save: Callable[[Optional[str], List[str], bool], None] = None
+        on_save: Callable[[Optional[str], List[str], bool, bool], None] = None,
+        config_manager=None
     ):
         self.parent = parent
+        self.config_manager = config_manager
+        
         setup_theme()
         super().__init__(parent)
 
@@ -330,6 +333,56 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         clipboard_checkbox.pack(side="left")
 
+        # === Разделитель ===
+        separator3 = ctk.CTkFrame(content_frame, height=2, fg_color=COLOR_THEME["border"])
+        separator3.pack(fill="x", pady=Spacing.LG)
+
+        # === Секция 4: Звуковые уведомления ===
+        sound_section = ctk.CTkFrame(content_frame, fg_color="transparent")
+        sound_section.pack(fill="x", pady=(0, Spacing.LG))
+
+        sound_title = ctk.CTkLabel(
+            sound_section,
+            text="Звуковые уведомления",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=COLOR_THEME["text_primary"],
+            anchor="w"
+        )
+        sound_title.pack(fill="x", pady=(0, Spacing.SM))
+
+        sound_desc = ctk.CTkLabel(
+            sound_section,
+            text="Воспроизводить звуковые сигналы при событиях (начало/окончание загрузки)",
+            font=ctk.CTkFont(size=12),
+            text_color=COLOR_THEME["text_muted"],
+            wraplength=560,
+            justify="left",
+            anchor="w"
+        )
+        sound_desc.pack(fill="x", pady=(0, Spacing.SM))
+
+        # Чекбокс включения звуков
+        self.sound_enabled_var = ctk.BooleanVar(
+            value=self.config_manager.get('ENABLE_SOUND_NOTIFICATIONS', True)
+        )
+
+        sound_checkbox = ctk.CTkCheckBox(
+            sound_section,
+            text="Включить звуковые уведомления",
+            variable=self.sound_enabled_var,
+            width=20,
+            height=20,
+            checkbox_width=20,
+            checkbox_height=20,
+            font=ctk.CTkFont(size=12),
+            text_color=COLOR_THEME["text_primary"],
+            fg_color=COLOR_THEME["bg_card"],
+            border_color=COLOR_THEME["text_muted"],
+            hover_color=COLOR_THEME["primary"],
+            corner_radius=4,
+        )
+        sound_checkbox.pack(side="left", pady=Spacing.SM)
+
         # Кнопки действий (фиксированная высота 46px, прижаты к низу main_frame)
         buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         buttons_frame.pack(fill="x", side="bottom", pady=(Spacing.XS, 0))
@@ -407,9 +460,17 @@ class SettingsDialog(ctk.CTkToplevel):
 
         # Clipboard monitoring
         clipboard_monitoring = self.clipboard_monitor_var.get()
+        
+        # Sound notifications
+        sound_enabled = self.sound_enabled_var.get()
 
         if self.on_save_callback:
-            self.on_save_callback(cookies_path, selected_categories, clipboard_monitoring)
+            self.on_save_callback(
+                cookies_path, 
+                selected_categories, 
+                clipboard_monitoring,
+                sound_enabled
+            )
 
         self.destroy()
 
