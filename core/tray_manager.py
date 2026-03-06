@@ -81,16 +81,6 @@ class TrayManager:
         self._icon: Optional[Icon] = None
         self._visible = False
 
-        # Переключатели для меню
-        self._clipboard_var = pystray.MenuToggle(
-            self._get_clipboard_state,
-            self._toggle_clipboard_monitoring
-        )
-        self._sound_var = pystray.MenuToggle(
-            self._get_sound_state,
-            self._toggle_sound_enabled
-        )
-
         logger.debug("TrayManager инициализирован")
 
     def _get_icon_path(self) -> Optional[str]:
@@ -162,31 +152,36 @@ class TrayManager:
 
         return Menu(
             # Быстрые переключатели
-            MenuItem("📋 Перехват ссылок из буфера", self._clipboard_var),
-            MenuItem("🔊 Проигрывание звуков", self._sound_var),
+            MenuItem(
+                "📋 Перехват ссылок из буфера",
+                self._toggle_clipboard_monitoring,
+                checked=lambda item: self._get_clipboard_state()
+            ),
+            MenuItem(
+                "🔊 Проигрывание звуков",
+                self._toggle_sound_enabled,
+                checked=lambda item: self._get_sound_state()
+            ),
             separator,
-            
+
             # Действия
             MenuItem("📋 Вставить ссылку и скачать", self._on_paste_and_download),
             separator,
-            
+
             MenuItem("⚙ Настройки", self._on_open_settings),
             MenuItem("❌ Выход", self._on_exit),
         )
 
-    def _get_clipboard_state(self, item: MenuItem) -> bool:
+    def _get_clipboard_state(self) -> bool:
         """
         Получить состояние мониторинга буфера обмена.
-
-        Args:
-            item: MenuItem (не используется)
 
         Returns:
             True если мониторинг включён
         """
         return self.clipboard_monitor.is_running() and not self.clipboard_monitor.is_paused()
 
-    def _toggle_clipboard_monitoring(self) -> None:
+    def _toggle_clipboard_monitoring(self, item=None) -> None:
         """Переключить мониторинг буфера обмена."""
         if self.clipboard_monitor.is_running() and not self.clipboard_monitor.is_paused():
             self.clipboard_monitor.pause()
@@ -202,19 +197,16 @@ class TrayManager:
         
         self.config_manager.save()
 
-    def _get_sound_state(self, item: MenuItem) -> bool:
+    def _get_sound_state(self) -> bool:
         """
         Получить состояние звуковых уведомлений.
-
-        Args:
-            item: MenuItem (не используется)
 
         Returns:
             True если звуки включены
         """
         return self.sound_manager.is_enabled()
 
-    def _toggle_sound_enabled(self) -> None:
+    def _toggle_sound_enabled(self, item=None) -> None:
         """Переключить звуковые уведомления."""
         current_state = self.sound_manager.is_enabled()
         new_state = not current_state
