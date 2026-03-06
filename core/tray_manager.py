@@ -159,6 +159,10 @@ class TrayManager:
             Menu pystray с пунктами
         """
         return Menu(
+            # Пункт восстановления окна (первый в меню)
+            MenuItem("🖼 Показать окно", self._on_icon_clicked),
+            Menu.SEPARATOR,
+            
             # Быстрые переключатели
             MenuItem(
                 "📋 Перехват ссылок из буфера",
@@ -297,9 +301,6 @@ class TrayManager:
             self._icon = self._create_icon()
 
             if self._icon:
-                # Устанавливаем обработчик клика по иконке (восстановление окна)
-                self._icon.default_action = self._on_icon_clicked
-
                 # Запуск в отдельном потоке
                 self._icon.run_detached()
                 self._visible = True
