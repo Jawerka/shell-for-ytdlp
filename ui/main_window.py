@@ -248,7 +248,7 @@ class MainWindow(ctk.CTk):
             hover_color=COLOR_THEME["accent_hover"],
             **btn_kwargs
         )
-        self.clear_button.pack(side="left", padx=(0, BUTTON_GAP))
+        self.clear_button.pack(side="left", padx=(0, BUTTON_GAP), fill="y")
         create_tooltip(self.clear_button, "Очистить URL, логи и прогресс", delay=3000)
 
         # Кнопка настроек (cookies + SponsorBlock)
@@ -260,7 +260,7 @@ class MainWindow(ctk.CTk):
             hover_color=COLOR_THEME["accent_hover"],
             **btn_kwargs
         )
-        self.settings_button.pack(side="left", padx=(0, BUTTON_GAP))
+        self.settings_button.pack(side="left", padx=(0, BUTTON_GAP), fill="y")
         create_tooltip(self.settings_button, "Настройки (cookies.txt, SponsorBlock)", delay=3000)
 
         # Кнопка выбора папки
@@ -272,7 +272,7 @@ class MainWindow(ctk.CTk):
             hover_color=COLOR_THEME["accent_hover"],
             **btn_kwargs
         )
-        self.folder_button.pack(side="left", padx=(0, BUTTON_GAP))
+        self.folder_button.pack(side="left", padx=(0, BUTTON_GAP), fill="y")
         create_tooltip(self.folder_button, "Выбрать папку для загрузки (Ctrl+O)", delay=3000)
 
         # Кнопка вставки
@@ -284,7 +284,7 @@ class MainWindow(ctk.CTk):
             hover_color=COLOR_THEME["accent_hover"],
             **btn_kwargs
         )
-        self.paste_button.pack(side="left", padx=(0, BUTTON_GAP))
+        self.paste_button.pack(side="left", padx=(0, BUTTON_GAP), fill="y")
         create_tooltip(self.paste_button, "Вставить URL из буфера обмена (Ctrl+V)", delay=3000)
 
         # Кнопка загрузки
@@ -296,7 +296,7 @@ class MainWindow(ctk.CTk):
             hover_color=COLOR_THEME["primary_hover"],
             **btn_kwargs
         )
-        self.download_button.pack(side="left")
+        self.download_button.pack(side="left", fill="y")
         create_tooltip(self.download_button, "Начать загрузку (Ctrl+Enter)", delay=3000)
 
         # Поле пути загрузки
