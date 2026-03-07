@@ -7,11 +7,14 @@ import customtkinter as ctk
 from typing import Optional
 from core.theme import COLOR_THEME
 
+# Единая задержка для всех тултипов (3 секунды)
+TOOLTIP_DELAY_MS = 3000
+
 
 class Tooltip:
     """
     Всплывающая подсказка для виджетов.
-    
+
     Появляется через заданную задержку при наведении курсора.
     """
 
@@ -19,7 +22,7 @@ class Tooltip:
         self,
         widget: ctk.CTkBaseClass,
         text: str,
-        delay: int = 500,
+        delay: int = TOOLTIP_DELAY_MS,
         bg_color: Optional[str] = None,
         text_color: Optional[str] = None,
     ):
@@ -29,7 +32,7 @@ class Tooltip:
         Args:
             widget: Виджет, для которого создаётся тултип
             text: Текст подсказки
-            delay: Задержка перед показом в мс (по умолчанию 500мс)
+            delay: Задержка перед показом в мс (по умолчанию 3000мс)
             bg_color: Цвет фона (по умолчанию тёмный из темы)
             text_color: Цвет текста (по умолчанию светлый из темы)
         """
@@ -137,14 +140,14 @@ class Tooltip:
                         break
 
 
-def create_tooltip(widget: ctk.CTkBaseClass, text: str, delay: int = 500) -> Tooltip:
+def create_tooltip(widget: ctk.CTkBaseClass, text: str, delay: int = TOOLTIP_DELAY_MS) -> Tooltip:
     """
     Создать тултип для виджета.
 
     Args:
         widget: Виджет для тултипа
         text: Текст подсказки
-        delay: Задержка перед показом в мс
+        delay: Задержка перед показом в мс (по умолчанию 3000мс)
 
     Returns:
         Экземпляр Tooltip
