@@ -13,6 +13,7 @@ from tkinter import filedialog
 from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
 from core.utils import find_cookies_txt, normalize_path_for_display
+from ui.tooltip import create_tooltip
 
 
 # Категории SponsorBlock
@@ -286,39 +287,19 @@ class SettingsDialog(ctk.CTkToplevel):
         separator2 = ctk.CTkFrame(content_frame, height=2, fg_color=COLOR_THEME["border"])
         separator2.pack(fill="x", pady=Spacing.LG)
 
-        # === Секция 3: Мониторинг буфера обмена ===
-        clipboard_section = ctk.CTkFrame(content_frame, fg_color="transparent")
-        clipboard_section.pack(fill="x", pady=(0, Spacing.LG))
+        # === Секция 3: Автоматизация (звуки + буфер обмена) ===
+        auto_section = ctk.CTkFrame(content_frame, fg_color="transparent")
+        auto_section.pack(fill="x", pady=(0, Spacing.LG))
 
-        clipboard_title = ctk.CTkLabel(
-            clipboard_section,
-            text="Автозагрузка из буфера обмена",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            text_color=COLOR_THEME["text_primary"],
-            anchor="w"
-        )
-        clipboard_title.pack(fill="x", pady=(0, Spacing.SM))
-
-        clipboard_desc = ctk.CTkLabel(
-            clipboard_section,
-            text="Автоматически начинать загрузку при появлении ссылки в буфере обмена",
-            font=ctk.CTkFont(size=12),
-            text_color=COLOR_THEME["text_muted"],
-            wraplength=560,
-            justify="left",
-            anchor="w"
-        )
-        clipboard_desc.pack(fill="x", pady=(0, Spacing.SM))
-
-        # Чекбокс включения
+        # Чекбокс: Мониторинг буфера обмена
         self.clipboard_monitor_var = ctk.BooleanVar(value=self.clipboard_monitoring)
 
-        clipboard_checkbox_frame = ctk.CTkFrame(clipboard_section, fg_color="transparent")
-        clipboard_checkbox_frame.pack(fill="x", pady=Spacing.SM)
+        clipboard_frame = ctk.CTkFrame(auto_section, fg_color="transparent")
+        clipboard_frame.pack(fill="x", pady=Spacing.SM)
 
         clipboard_checkbox = ctk.CTkCheckBox(
-            clipboard_checkbox_frame,
-            text="Включить мониторинг буфера обмена",
+            clipboard_frame,
+            text="Автозагрузка из буфера обмена",
             variable=self.clipboard_monitor_var,
             width=20,
             height=20,
@@ -333,42 +314,24 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         clipboard_checkbox.pack(side="left")
 
-        # === Разделитель ===
-        separator3 = ctk.CTkFrame(content_frame, height=2, fg_color=COLOR_THEME["border"])
-        separator3.pack(fill="x", pady=Spacing.LG)
-
-        # === Секция 4: Звуковые уведомления ===
-        sound_section = ctk.CTkFrame(content_frame, fg_color="transparent")
-        sound_section.pack(fill="x", pady=(0, Spacing.LG))
-
-        sound_title = ctk.CTkLabel(
-            sound_section,
-            text="Звуковые уведомления",
-            font=ctk.CTkFont(size=13, weight="bold"),
-            text_color=COLOR_THEME["text_primary"],
-            anchor="w"
+        # Тултип для буфера обмена
+        create_tooltip(
+            clipboard_checkbox,
+            "Автоматически начинать загрузку при появлении ссылки в буфере обмена",
+            delay=500
         )
-        sound_title.pack(fill="x", pady=(0, Spacing.SM))
 
-        sound_desc = ctk.CTkLabel(
-            sound_section,
-            text="Воспроизводить звуковые сигналы при событиях (начало/окончание загрузки)",
-            font=ctk.CTkFont(size=12),
-            text_color=COLOR_THEME["text_muted"],
-            wraplength=560,
-            justify="left",
-            anchor="w"
-        )
-        sound_desc.pack(fill="x", pady=(0, Spacing.SM))
-
-        # Чекбокс включения звуков
+        # Чекбокс: Звуковые уведомления
         self.sound_enabled_var = ctk.BooleanVar(
             value=self.config_manager.get('ENABLE_SOUND_NOTIFICATIONS', True)
         )
 
+        sound_frame = ctk.CTkFrame(auto_section, fg_color="transparent")
+        sound_frame.pack(fill="x", pady=Spacing.SM)
+
         sound_checkbox = ctk.CTkCheckBox(
-            sound_section,
-            text="Включить звуковые уведомления",
+            sound_frame,
+            text="Звуковые уведомления",
             variable=self.sound_enabled_var,
             width=20,
             height=20,
@@ -381,7 +344,14 @@ class SettingsDialog(ctk.CTkToplevel):
             hover_color=COLOR_THEME["primary"],
             corner_radius=4,
         )
-        sound_checkbox.pack(side="left", pady=Spacing.SM)
+        sound_checkbox.pack(side="left")
+
+        # Тултип для звуков
+        create_tooltip(
+            sound_checkbox,
+            "Воспроизводить звуковые сигналы при событиях (начало/окончание загрузки)",
+            delay=500
+        )
 
         # Кнопки действий (фиксированная высота 46px, прижаты к низу main_frame)
         buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
