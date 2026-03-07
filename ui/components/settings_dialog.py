@@ -103,36 +103,24 @@ class SettingsDialog(ctk.CTkToplevel):
             # Проверяем что позиция в пределах экрана (с запасом)
             if pos_x < -100 or pos_x > screen_w - 100 or pos_y < -100 or pos_y > screen_h - 100:
                 # Если окно ушло за пределы - центрируем над родителем
-                self.geometry(f"{width}x{height}")
-                self._center_over_parent(width, height)
-            else:
-                # Восстанавливаем сохранённую позицию
-                self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
+                parent_x = self.parent.winfo_x()
+                parent_y = self.parent.winfo_y()
+                parent_width = self.parent.winfo_width()
+                parent_height = self.parent.winfo_height()
+                pos_x = parent_x + (parent_width - width) // 2
+                pos_y = parent_y + (parent_height - height) // 2
+            # Иначе используем сохранённую позицию
         else:
             # Позиционируем по центру родительского окна
-            self.geometry(f"{width}x{height}")
-            self._center_over_parent(width, height)
-
-    def _center_over_parent(self, width: int, height: int) -> None:
-        """
-        Расположить окно по центру родительского окна.
-
-        Args:
-            width: Ширина окна
-            height: Высота окна
-        """
-        try:
             parent_x = self.parent.winfo_x()
             parent_y = self.parent.winfo_y()
             parent_width = self.parent.winfo_width()
             parent_height = self.parent.winfo_height()
-
             pos_x = parent_x + (parent_width - width) // 2
             pos_y = parent_y + (parent_height - height) // 2
 
-            self.geometry(f"+{pos_x}+{pos_y}")
-        except Exception:
-            pass
+        # Устанавливаем финальную позицию и размер
+        self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
 
     def _save_window_position(self) -> None:
         """Сохранить позицию окна в настройках (размеры не сохраняем)."""

@@ -99,6 +99,9 @@ class MainWindow(ctk.CTk):
     def _setup_window(self) -> None:
         self.title("UI-for-ytdlp")
         
+        # Скрываем окно до позиционирования (чтобы не было "мигания")
+        self.withdraw()
+        
         # Стандартные размеры по умолчанию (минимальные)
         default_width = 740
         default_height = 520
@@ -126,13 +129,19 @@ class MainWindow(ctk.CTk):
             # Проверяем что позиция в пределах экрана (с запасом)
             if pos_x < -100 or pos_x > screen_w - 100 or pos_y < -100 or pos_y > screen_h - 100:
                 # Если окно ушло за пределы - центрируем
-                self._center_window(width, height)
-            else:
-                # Восстанавливаем сохранённую позицию
-                self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
+                pos_x = (screen_w // 2) - (width // 2)
+                pos_y = (screen_h // 2) - (height // 2)
+            # Иначе используем сохранённую позицию
         else:
             # Позиционируем окно по центру экрана
-            self._center_window(width, height)
+            pos_x = (screen_w // 2) - (width // 2)
+            pos_y = (screen_h // 2) - (height // 2)
+        
+        # Устанавливаем финальную позицию и размер
+        self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
+        
+        # Показываем окно (теперь оно сразу в нужной позиции)
+        self.deiconify()
 
         # Обработчик закрытия окна (крестик) — полное закрытие
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
