@@ -6,6 +6,7 @@
 from typing import Callable, List, Optional
 import sys
 import os
+import logging
 
 import customtkinter as ctk
 from tkinter import filedialog
@@ -14,6 +15,8 @@ from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
 from core.utils import find_cookies_txt, normalize_path_for_display
 from ui.tooltip import create_tooltip
+
+logger = logging.getLogger('UI-for-ytdlp.settings_dialog')
 
 
 # Категории SponsorBlock
@@ -41,7 +44,7 @@ class SettingsDialog(ctk.CTkToplevel):
     ):
         self.parent = parent
         self.config_manager = config_manager
-        
+
         setup_theme()
         super().__init__(parent)
 
@@ -51,11 +54,17 @@ class SettingsDialog(ctk.CTkToplevel):
         self.on_save_callback = on_save
 
         self.title("Настройки")
-        self.geometry("620x700")
+        
+        # Восстанавливаем позицию и размер из настроек
+        self._restore_window_position()
+        
         self.minsize(620, 700)
         self.transient(parent)
         self.grab_set()
         self.configure(fg_color=COLOR_THEME["bg_primary"])
+
+        # Обработчик закрытия — сохраняем позицию
+        self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
         try:
             if sys.platform == "win32":
@@ -66,17 +75,72 @@ class SettingsDialog(ctk.CTkToplevel):
         if not sys.platform == "win32":
             self._create_ui()
 
-    def _set_dark_title(self) -> None:
+    def _restore_window_position(self) -> None:
+        """Восстановить позицию и размер окна из настроек."""
+        if self.config_manager:
+            pos_x = self.config_manager.get('SETTINGS_WINDOW_POS_X')
+            pos_y = self.config_manager.get('SETTINGS_WINDOW_POS_Y')
+            width = self.config_manager.get('SETTINGS_WINDOW_WIDTH', 620)
+            height = self.config_manager.get('SETTINGS_WINDOW_HEIGHT', 700)
+            
+            if pos_x is not None and pos_y is not None:
+                # Восстанавливаем сохранённую позицию
+                self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
+            else:
+                # Позиционируем по центру родительского окна
+                self.geometry(f"{width}x{height}")
+                self._center_over_parent(width, height)
+
+    def _center_over_parent(self, width: int, height: int) -> None:
+        """
+        Расположить окно по центру родительского окна.
+
+        Args:
+            width: Ширина окна
+            height: Высота окна
+        """
         try:
-            ctk.set_appearance_mode("dark")
+            parent_x = self.parent.winfo_x()
+            parent_y = self.parent.winfo_y()
+            parent_width = self.parent.winfo_width()
+            parent_height = self.parent.winfo_height()
+
+            pos_x = parent_x + (parent_width - width) // 2
+            pos_y = parent_y + (parent_height - height) // 2
+
+            self.geometry(f"+{pos_x}+{pos_y}")
         except Exception:
             pass
 
+    def _save_window_position(self) -> None:
+        """Сохранить позицию и размер окна в настройках."""
+        if not self.config_manager:
+            return
+
         try:
-            self.update_idletasks()
-            x = self.parent.winfo_x() + (self.parent.winfo_width() - self.winfo_width()) // 2
-            y = self.parent.winfo_y() + (self.parent.winfo_height() - self.winfo_height()) // 2
-            self.geometry(f"+{x}+{y}")
+            pos_x = self.winfo_x()
+            pos_y = self.winfo_y()
+            width = self.winfo_width()
+            height = self.winfo_height()
+
+            self.config_manager.set('SETTINGS_WINDOW_POS_X', pos_x)
+            self.config_manager.set('SETTINGS_WINDOW_POS_Y', pos_y)
+            self.config_manager.set('SETTINGS_WINDOW_WIDTH', width)
+            self.config_manager.set('SETTINGS_WINDOW_HEIGHT', height)
+            self.config_manager.save()
+
+            logger.debug(f"Позиция окна настроек сохранена: x={pos_x}, y={pos_y}, w={width}, h={height}")
+        except Exception as e:
+            logger.debug(f"Ошибка сохранения позиции окна настроек: {e}")
+
+    def _on_closing(self) -> None:
+        """Обработчик закрытия окна настроек."""
+        self._save_window_position()
+        self.destroy()
+
+    def _set_dark_title(self) -> None:
+        try:
+            ctk.set_appearance_mode("dark")
         except Exception:
             pass
 

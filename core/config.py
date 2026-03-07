@@ -82,11 +82,16 @@ DEFAULT_CONFIG = {
     'CLIPBOARD_MONITORING': False,
     # Настройки звуковых уведомлений
     'ENABLE_SOUND_NOTIFICATIONS': True,
-    # Настройки положения окна
+    # Настройки положения главного окна
     'WINDOW_POS_X': None,
     'WINDOW_POS_Y': None,
     'WINDOW_WIDTH': 740,
     'WINDOW_HEIGHT': 520,
+    # Настройки положения окна настроек
+    'SETTINGS_WINDOW_POS_X': None,
+    'SETTINGS_WINDOW_POS_Y': None,
+    'SETTINGS_WINDOW_WIDTH': 620,
+    'SETTINGS_WINDOW_HEIGHT': 700,
     # Последний загруженный URL (для предотвращения повторной загрузки)
     'LAST_DOWNLOADED_URL': '',
 }
