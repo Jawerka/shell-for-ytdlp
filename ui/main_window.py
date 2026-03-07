@@ -98,10 +98,23 @@ class MainWindow(ctk.CTk):
 
     def _setup_window(self) -> None:
         self.title("UI-for-ytdlp")
-        self.geometry("740x520")
+        
+        # Восстанавливаем позицию и размер окна из настроек
+        pos_x = self.config_manager.get('WINDOW_POS_X')
+        pos_y = self.config_manager.get('WINDOW_POS_Y')
+        width = self.config_manager.get('WINDOW_WIDTH', 740)
+        height = self.config_manager.get('WINDOW_HEIGHT', 520)
+        
+        if pos_x is not None and pos_y is not None:
+            # Восстанавливаем сохранённую позицию
+            self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
+        else:
+            # Позиционируем окно по центру экрана
+            self._center_window(width, height)
+        
         self.minsize(740, 520)
         self.configure(fg_color=COLOR_THEME["bg_primary"])
-        
+
         # Обработчик закрытия окна (крестик) — полное закрытие
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
@@ -119,6 +132,42 @@ class MainWindow(ctk.CTk):
                 self.iconphoto(True, icon_img)
         except Exception as e:
             logger.warning(f"Не удалось установить иконку окна: {e}")
+
+    def _center_window(self, width: int, height: int) -> None:
+        """
+        Расположить окно по центру экрана.
+
+        Args:
+            width: Ширина окна
+            height: Высота окна
+        """
+        # Получаем размеры экрана
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+
+        # Вычисляем координаты центра
+        pos_x = (screen_width // 2) - (width // 2)
+        pos_y = (screen_height // 2) - (height // 2)
+
+        # Устанавливаем позицию
+        self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
+
+    def _save_window_position(self) -> None:
+        """Сохранить позицию и размер окна в настройках."""
+        # Получаем текущую позицию и размер
+        pos_x = self.winfo_x()
+        pos_y = self.winfo_y()
+        width = self.winfo_width()
+        height = self.winfo_height()
+
+        # Сохраняем в конфиг
+        self.config_manager.set('WINDOW_POS_X', pos_x)
+        self.config_manager.set('WINDOW_POS_Y', pos_y)
+        self.config_manager.set('WINDOW_WIDTH', width)
+        self.config_manager.set('WINDOW_HEIGHT', height)
+        self.config_manager.save()
+
+        logger.debug(f"Позиция окна сохранена: x={pos_x}, y={pos_y}, w={width}, h={height}")
 
     def _init_path_label(self) -> None:
         """Инициализировать поле пути загрузки."""
@@ -871,11 +920,14 @@ class MainWindow(ctk.CTk):
     def _on_closing(self) -> None:
         """Обработчик закрытия окна (крестик) — полное закрытие приложения."""
         logger.debug("_on_closing: Закрытие приложения")
-        
+
+        # Сохранить позицию окна перед закрытием
+        self._save_window_position()
+
         # Остановить трей если есть
         if self.tray_manager:
             self.tray_manager.stop()
-        
+
         # Остановить мониторинг буфера обмена
         if self.clipboard_monitor.is_running():
             self.clipboard_monitor.stop()
