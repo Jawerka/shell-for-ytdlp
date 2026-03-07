@@ -82,10 +82,22 @@ class SettingsDialog(ctk.CTkToplevel):
             pos_y = self.config_manager.get('SETTINGS_WINDOW_POS_Y')
             width = self.config_manager.get('SETTINGS_WINDOW_WIDTH', 620)
             height = self.config_manager.get('SETTINGS_WINDOW_HEIGHT', 700)
-            
+
+            # Проверяем что размеры в допустимых пределах
+            screen_w = self.winfo_screenwidth()
+            screen_h = self.winfo_screenheight()
+            width = max(620, min(width, screen_w))
+            height = max(700, min(height, screen_h))
+
             if pos_x is not None and pos_y is not None:
-                # Восстанавливаем сохранённую позицию
-                self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
+                # Проверяем что позиция в пределах экрана
+                if pos_x < -100 or pos_x > screen_w - 100 or pos_y < -100 or pos_y > screen_h - 100:
+                    # Если окно ушло за пределы - центрируем над родителем
+                    self.geometry(f"{width}x{height}")
+                    self._center_over_parent(width, height)
+                else:
+                    # Восстанавливаем сохранённую позицию
+                    self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
             else:
                 # Позиционируем по центру родительского окна
                 self.geometry(f"{width}x{height}")
