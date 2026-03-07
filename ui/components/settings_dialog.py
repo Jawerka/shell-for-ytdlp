@@ -76,18 +76,17 @@ class SettingsDialog(ctk.CTkToplevel):
             self._create_ui()
 
     def _restore_window_position(self) -> None:
-        """Восстановить позицию и размер окна из настроек."""
+        """Восстановить позицию окна из настроек (размеры всегда минимальные)."""
         if not self.config_manager:
             return
 
-        # Стандартные размеры по умолчанию
+        # Стандартные размеры по умолчанию (минимальные)
         default_width = 620
         default_height = 700
 
+        # Восстанавливаем ТОЛЬКО позицию (размеры всегда минимальные)
         pos_x = self.config_manager.get('SETTINGS_WINDOW_POS_X')
         pos_y = self.config_manager.get('SETTINGS_WINDOW_POS_Y')
-        width = self.config_manager.get('SETTINGS_WINDOW_WIDTH', default_width)
-        height = self.config_manager.get('SETTINGS_WINDOW_HEIGHT', default_height)
 
         # Обновляем окно чтобы получить корректные размеры
         self.update()
@@ -96,9 +95,9 @@ class SettingsDialog(ctk.CTkToplevel):
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
 
-        # Проверяем что размеры в допустимых пределах
-        width = max(default_width, min(width, screen_w))
-        height = max(default_height, min(height, screen_h))
+        # Используем минимальные размеры
+        width = default_width
+        height = default_height
 
         if pos_x is not None and pos_y is not None:
             # Проверяем что позиция в пределах экрана (с запасом)
@@ -136,23 +135,19 @@ class SettingsDialog(ctk.CTkToplevel):
             pass
 
     def _save_window_position(self) -> None:
-        """Сохранить позицию и размер окна в настройках."""
+        """Сохранить позицию окна в настройках (размеры не сохраняем)."""
         if not self.config_manager:
             return
 
         try:
             pos_x = self.winfo_x()
             pos_y = self.winfo_y()
-            width = self.winfo_width()
-            height = self.winfo_height()
 
             self.config_manager.set('SETTINGS_WINDOW_POS_X', pos_x)
             self.config_manager.set('SETTINGS_WINDOW_POS_Y', pos_y)
-            self.config_manager.set('SETTINGS_WINDOW_WIDTH', width)
-            self.config_manager.set('SETTINGS_WINDOW_HEIGHT', height)
             self.config_manager.save()
 
-            logger.debug(f"Позиция окна настроек сохранена: x={pos_x}, y={pos_y}, w={width}, h={height}")
+            logger.debug(f"Позиция окна настроек сохранена: x={pos_x}, y={pos_y}")
         except Exception as e:
             logger.debug(f"Ошибка сохранения позиции окна настроек: {e}")
 

@@ -99,15 +99,13 @@ class MainWindow(ctk.CTk):
     def _setup_window(self) -> None:
         self.title("UI-for-ytdlp")
         
-        # Стандартные размеры по умолчанию
+        # Стандартные размеры по умолчанию (минимальные)
         default_width = 740
         default_height = 520
         
-        # Восстанавливаем позицию и размер окна из настроек
+        # Восстанавливаем ТОЛЬКО позицию из настроек (размеры всегда минимальные)
         pos_x = self.config_manager.get('WINDOW_POS_X')
         pos_y = self.config_manager.get('WINDOW_POS_Y')
-        width = self.config_manager.get('WINDOW_WIDTH', default_width)
-        height = self.config_manager.get('WINDOW_HEIGHT', default_height)
         
         # Устанавливаем минимальный размер
         self.minsize(default_width, default_height)
@@ -120,9 +118,9 @@ class MainWindow(ctk.CTk):
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
         
-        # Проверяем что размеры в допустимых пределах
-        width = max(default_width, min(width, screen_w))
-        height = max(default_height, min(height, screen_h))
+        # Используем минимальные размеры
+        width = default_width
+        height = default_height
         
         if pos_x is not None and pos_y is not None:
             # Проверяем что позиция в пределах экрана (с запасом)
@@ -174,21 +172,17 @@ class MainWindow(ctk.CTk):
         self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
 
     def _save_window_position(self) -> None:
-        """Сохранить позицию и размер окна в настройках."""
-        # Получаем текущую позицию и размер
+        """Сохранить позицию окна в настройках (размеры не сохраняем)."""
+        # Получаем текущую позицию
         pos_x = self.winfo_x()
         pos_y = self.winfo_y()
-        width = self.winfo_width()
-        height = self.winfo_height()
 
         # Сохраняем в конфиг
         self.config_manager.set('WINDOW_POS_X', pos_x)
         self.config_manager.set('WINDOW_POS_Y', pos_y)
-        self.config_manager.set('WINDOW_WIDTH', width)
-        self.config_manager.set('WINDOW_HEIGHT', height)
         self.config_manager.save()
 
-        logger.debug(f"Позиция окна сохранена: x={pos_x}, y={pos_y}, w={width}, h={height}")
+        logger.debug(f"Позиция окна сохранена: x={pos_x}, y={pos_y}")
 
     def _init_path_label(self) -> None:
         """Инициализировать поле пути загрузки."""
