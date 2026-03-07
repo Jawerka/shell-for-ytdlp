@@ -140,15 +140,19 @@ class TrayManager:
             logger.error(f"Ошибка создания иконки: {e}", exc_info=True)
             return None
 
-    def _on_icon_clicked(self, icon: Icon, item: MenuItem) -> None:
+    def _on_icon_clicked(self, icon: Icon, item: MenuItem = None) -> None:
         """
-        Обработчик одинарного клика по иконке - восстановление окна.
+        Обработчик клика по иконке - восстановление окна.
+        
+        Вызывается:
+        - При клике на пункт "🖼 Показать окно" в меню (ПКМ)
+        - При поддержке set_on_click() — при клике ЛКМ
 
         Args:
             icon: Иконка pystray
-            item: MenuItem
+            item: MenuItem (опционально)
         """
-        logger.debug("Клик по иконке в трее - восстановление окна")
+        logger.info("Восстановление окна из трея")
         self._safe_callback(self.on_restore)
 
     def _build_menu(self) -> Menu:
@@ -301,10 +305,19 @@ class TrayManager:
             self._icon = self._create_icon()
 
             if self._icon:
+                # Попытка установить обработчик клика (если поддерживается)
+                # pystray на некоторых платформах поддерживает set_on_click()
+                if hasattr(self._icon, 'set_on_click'):
+                    try:
+                        self._icon.set_on_click(self._on_icon_clicked)
+                        logger.debug("Установлен обработчик клика через set_on_click()")
+                    except Exception as e:
+                        logger.debug(f"set_on_click() не поддерживается: {e}")
+                
                 # Запуск в отдельном потоке
                 self._icon.run_detached()
                 self._visible = True
-                logger.info("Иконка показана в трее")
+                logger.info("Иконка показана в трее (ПКМ для меню)")
         except Exception as e:
             logger.error(f"Ошибка показа иконки: {e}", exc_info=True)
 
