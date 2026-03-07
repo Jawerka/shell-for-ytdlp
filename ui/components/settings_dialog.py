@@ -77,31 +77,42 @@ class SettingsDialog(ctk.CTkToplevel):
 
     def _restore_window_position(self) -> None:
         """Восстановить позицию и размер окна из настроек."""
-        if self.config_manager:
-            pos_x = self.config_manager.get('SETTINGS_WINDOW_POS_X')
-            pos_y = self.config_manager.get('SETTINGS_WINDOW_POS_Y')
-            width = self.config_manager.get('SETTINGS_WINDOW_WIDTH', 620)
-            height = self.config_manager.get('SETTINGS_WINDOW_HEIGHT', 700)
+        if not self.config_manager:
+            return
 
-            # Проверяем что размеры в допустимых пределах
-            screen_w = self.winfo_screenwidth()
-            screen_h = self.winfo_screenheight()
-            width = max(620, min(width, screen_w))
-            height = max(700, min(height, screen_h))
+        # Стандартные размеры по умолчанию
+        default_width = 620
+        default_height = 700
 
-            if pos_x is not None and pos_y is not None:
-                # Проверяем что позиция в пределах экрана
-                if pos_x < -100 or pos_x > screen_w - 100 or pos_y < -100 or pos_y > screen_h - 100:
-                    # Если окно ушло за пределы - центрируем над родителем
-                    self.geometry(f"{width}x{height}")
-                    self._center_over_parent(width, height)
-                else:
-                    # Восстанавливаем сохранённую позицию
-                    self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
-            else:
-                # Позиционируем по центру родительского окна
+        pos_x = self.config_manager.get('SETTINGS_WINDOW_POS_X')
+        pos_y = self.config_manager.get('SETTINGS_WINDOW_POS_Y')
+        width = self.config_manager.get('SETTINGS_WINDOW_WIDTH', default_width)
+        height = self.config_manager.get('SETTINGS_WINDOW_HEIGHT', default_height)
+
+        # Обновляем окно чтобы получить корректные размеры
+        self.update()
+
+        # Получаем размеры экрана
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+
+        # Проверяем что размеры в допустимых пределах
+        width = max(default_width, min(width, screen_w))
+        height = max(default_height, min(height, screen_h))
+
+        if pos_x is not None and pos_y is not None:
+            # Проверяем что позиция в пределах экрана (с запасом)
+            if pos_x < -100 or pos_x > screen_w - 100 or pos_y < -100 or pos_y > screen_h - 100:
+                # Если окно ушло за пределы - центрируем над родителем
                 self.geometry(f"{width}x{height}")
                 self._center_over_parent(width, height)
+            else:
+                # Восстанавливаем сохранённую позицию
+                self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
+        else:
+            # Позиционируем по центру родительского окна
+            self.geometry(f"{width}x{height}")
+            self._center_over_parent(width, height)
 
     def _center_over_parent(self, width: int, height: int) -> None:
         """

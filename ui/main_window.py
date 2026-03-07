@@ -98,24 +98,36 @@ class MainWindow(ctk.CTk):
 
     def _setup_window(self) -> None:
         self.title("UI-for-ytdlp")
-
+        
+        # Стандартные размеры по умолчанию
+        default_width = 740
+        default_height = 520
+        
         # Восстанавливаем позицию и размер окна из настроек
         pos_x = self.config_manager.get('WINDOW_POS_X')
         pos_y = self.config_manager.get('WINDOW_POS_Y')
-        width = self.config_manager.get('WINDOW_WIDTH', 740)
-        height = self.config_manager.get('WINDOW_HEIGHT', 520)
-
+        width = self.config_manager.get('WINDOW_WIDTH', default_width)
+        height = self.config_manager.get('WINDOW_HEIGHT', default_height)
+        
+        # Устанавливаем минимальный размер
+        self.minsize(default_width, default_height)
+        self.configure(fg_color=COLOR_THEME["bg_primary"])
+        
+        # Обновляем окно чтобы получить корректные размеры экрана
+        self.update()
+        
+        # Получаем размеры экрана после обновления
+        screen_w = self.winfo_screenwidth()
+        screen_h = self.winfo_screenheight()
+        
         # Проверяем что размеры в допустимых пределах
-        width = max(740, min(width, self.winfo_screenwidth()))
-        height = max(520, min(height, self.winfo_screenheight()))
-
+        width = max(default_width, min(width, screen_w))
+        height = max(default_height, min(height, screen_h))
+        
         if pos_x is not None and pos_y is not None:
-            # Проверяем что позиция в пределах экрана
-            screen_w = self.winfo_screenwidth()
-            screen_h = self.winfo_screenheight()
-
-            # Если окно ушло за пределы экрана - центрируем
+            # Проверяем что позиция в пределах экрана (с запасом)
             if pos_x < -100 or pos_x > screen_w - 100 or pos_y < -100 or pos_y > screen_h - 100:
+                # Если окно ушло за пределы - центрируем
                 self._center_window(width, height)
             else:
                 # Восстанавливаем сохранённую позицию
@@ -123,9 +135,6 @@ class MainWindow(ctk.CTk):
         else:
             # Позиционируем окно по центру экрана
             self._center_window(width, height)
-
-        self.minsize(740, 520)
-        self.configure(fg_color=COLOR_THEME["bg_primary"])
 
         # Обработчик закрытия окна (крестик) — полное закрытие
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
