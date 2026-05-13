@@ -157,8 +157,9 @@ class TrayManager:
         Обработчик клика по иконке - восстановление окна.
         
         Вызывается:
-        - При клике на пункт "🖼 Показать окно" в меню (ПКМ)
-        - При поддержке set_on_click() — при клике ЛКМ
+        - Одиночный ЛКМ по иконке (Windows: пункт меню с default=True)
+        - Выбор пункта «Показать окно» в контекстном меню (ПКМ)
+        - При поддержке set_on_click() на части платформ
 
         Args:
             icon: Иконка pystray
@@ -175,8 +176,8 @@ class TrayManager:
             Menu pystray с пунктами
         """
         return Menu(
-            # Пункт восстановления окна (первый в меню)
-            MenuItem("🖼 Показать окно", self._on_icon_clicked),
+            # default=True: на Windows одиночный ЛКМ по иконке вызывает действие по умолчанию (pystray Win32).
+            MenuItem("🖼 Показать окно", self._on_icon_clicked, default=True),
             Menu.SEPARATOR,
             
             # Быстрые переключатели

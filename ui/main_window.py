@@ -17,7 +17,7 @@ import tkinter as tk
 from tkinter import filedialog
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
-from PIL import Image
+from PIL import Image, ImageTk
 
 # Определение корневой директории проекта
 if hasattr(sys, '_MEIPASS'):
@@ -147,20 +147,37 @@ class MainWindow(ctk.CTk):
         # Обработчик закрытия окна (крестик) — полное закрытие
         self.protocol("WM_DELETE_WINDOW", self._on_closing)
 
-        # Установка иконки окна
+        # Иконка в заголовке и на панели задач: iconphoto принимает только PhotoImage, не CTkImage.
         try:
-            icon_path = os.path.join(project_root, 'icon.ico')
             if hasattr(sys, '_MEIPASS'):
-                # Запуск из exe: иконка в папке с исполняемым файлом
                 icon_path = os.path.join(os.path.dirname(sys.executable), 'icon.ico')
             else:
-                # Запуск из исходного кода: иконка в корне проекта
                 icon_path = os.path.join(project_root, 'icon.ico')
-            if os.path.exists(icon_path):
-                icon_img = ctk.CTkImage(light_image=Image.open(icon_path), size=(32, 32))
-                self.iconphoto(True, icon_img)
+            if os.path.isfile(icon_path):
+                self._apply_window_icon(icon_path)
         except Exception as e:
             logger.warning(f"Не удалось установить иконку окна: {e}")
+
+    def _apply_window_icon(self, icon_path: str) -> None:
+        """
+        Применить icon.ico к окну.
+
+        На Windows wm iconbitmap(default=...) задаёт и заголовок, и панель задач.
+        На остальных платформах — PhotoImage + iconphoto (нужна ссылка на объект).
+        """
+        self._wm_icon_photo = None
+        if sys.platform == 'win32':
+            try:
+                self.iconbitmap(default=icon_path)
+                return
+            except tk.TclError as e:
+                logger.debug(f"iconbitmap не применился, пробуем iconphoto: {e}")
+
+        img = Image.open(icon_path)
+        if img.mode not in ('RGB', 'RGBA'):
+            img = img.convert('RGBA')
+        self._wm_icon_photo = ImageTk.PhotoImage(img)
+        self.iconphoto(True, self._wm_icon_photo)
 
     def _center_window(self, width: int, height: int) -> None:
         """
