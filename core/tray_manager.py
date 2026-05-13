@@ -12,6 +12,7 @@
 import logging
 import sys
 import os
+import threading
 from typing import Optional, Callable
 
 try:
@@ -79,6 +80,7 @@ class TrayManager:
         self.root_window = root_window
 
         self._icon: Optional[Icon] = None
+        self._icon_thread: Optional[threading.Thread] = None
         self._visible = False
 
         logger.debug("TrayManager инициализирован")
@@ -122,13 +124,23 @@ class TrayManager:
             # Создаём заглушку если иконка не найдена
             logger.warning("Создание иконки-заглушки")
             img = Image.new('RGB', (64, 64), color=(59, 130, 246))
-            return Icon("UI-for-ytdlp", img, "UI-for-ytdlp")
+            return Icon(
+                "UI-for-ytdlp",
+                img,
+                "UI-for-ytdlp",
+                menu=self._build_menu(),
+            )
 
         try:
             icon_img = Image.open(icon_path)
-            # Убедимся что размер подходящий
-            if icon_img.size != (256, 256):
-                icon_img = icon_img.resize((256, 256), Image.Resampling.LANCZOS)
+            if icon_img.mode not in ("RGB", "RGBA"):
+                icon_img = icon_img.convert("RGBA")
+            # Для области уведомлений Windows стабильнее небольшой квадрат (см. pystray / HIG)
+            tray_size = 64
+            if icon_img.size != (tray_size, tray_size):
+                icon_img = icon_img.resize(
+                    (tray_size, tray_size), Image.Resampling.LANCZOS
+                )
 
             return Icon(
                 "UI-for-ytdlp",
@@ -313,9 +325,18 @@ class TrayManager:
                         logger.debug("Установлен обработчик клика через set_on_click()")
                     except Exception as e:
                         logger.debug(f"set_on_click() не поддерживается: {e}")
-                
-                # Запуск в отдельном потоке
-                self._icon.run_detached()
+
+                # pystray FAQ: с Tkinter на Windows/Linux надёжнее icon.run() в потоке,
+                # чем run_detached() (несовместимость циклов событий → пустая/невидимая иконка).
+                if sys.platform == "darwin":
+                    self._icon.run_detached()
+                else:
+                    self._icon_thread = threading.Thread(
+                        target=self._icon.run,
+                        daemon=True,
+                        name="UI-for-ytdlp.pystray",
+                    )
+                    self._icon_thread.start()
                 self._visible = True
                 logger.info("Иконка показана в трее (ПКМ для меню)")
         except Exception as e:
@@ -329,6 +350,7 @@ class TrayManager:
         try:
             self._icon.stop()
             self._icon = None
+            self._icon_thread = None
             self._visible = False
             logger.info("Иконка скрыта из трея")
         except Exception as e:

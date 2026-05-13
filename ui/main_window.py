@@ -13,6 +13,7 @@ import logging
 from typing import Optional, List, Tuple
 
 import customtkinter as ctk
+import tkinter as tk
 from tkinter import filedialog
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
@@ -895,9 +896,15 @@ class MainWindow(ctk.CTk):
 
         # Esc — отмена загрузки
         self.bind('<Escape>', lambda e: self._cancel_download())
-        
-        # Обработчик сворачивания окна — в трей
-        self.bind('<Unmap>', lambda e: self._on_minimize())
+
+        # Сворачивание в трей: <Unmap> часто приходит до того, как wm выставит state() в iconic,
+        # из‑за чего проверка state() в том же тике иногда «промахивается» — отложенная проверка в after_idle.
+        # <Iconify> есть не во всех сборках Tk (например, часть Win + Tcl 9) — привязка опциональна.
+        self.bind('<Unmap>', self._schedule_tray_minimize_check)
+        try:
+            self.bind('<Iconify>', self._schedule_tray_minimize_check)
+        except tk.TclError:
+            logger.debug("Событие <Iconify> недоступно в этой сборке Tk, трей только через <Unmap>")
 
     # Drag & Drop требует tkinterdnd2, отключено до установки зависимости
     # def _setup_drag_and_drop(self) -> None:
@@ -912,11 +919,22 @@ class MainWindow(ctk.CTk):
                 self.downloader.cancel()
                 self.log_viewer.warning("Загрузка отменена пользователем")
 
-    def _on_minimize(self) -> None:
-        """Обработчик события сворачивания окна."""
-        # Проверка: окно действительно свёрнуто (не закрыто)
-        if self.state() == 'iconic':
-            self._minimize_to_tray()
+    def _schedule_tray_minimize_check(self, event=None) -> None:
+        """Запланировать проверку «свернули в панель задач → уйти в трей» после обновления WM."""
+        self.after_idle(self._try_minimize_to_tray_from_wm)
+
+    def _try_minimize_to_tray_from_wm(self) -> None:
+        """Если окно в состоянии iconic — скрыть и показать иконку трея."""
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
+        if self.tray_manager and self.tray_manager.is_visible():
+            return
+        if self.state() != 'iconic':
+            return
+        self._minimize_to_tray()
 
     def _minimize_to_tray(self) -> None:
         """Свернуть окно в трей."""
