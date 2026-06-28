@@ -5,7 +5,7 @@
 
 **Modern GUI for yt-dlp built with customtkinter.**
 
-![Version](https://img.shields.io/badge/version-1.0-blue)
+![Version](https://img.shields.io/badge/version-0.2.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -216,6 +216,13 @@ pytest tests/ -v -m integration
 ---
 
 ## 📝 Changelog
+
+### v0.2.0 (2026-06-29)
+- 🚀 Первый релиз **UI-for-ytdlp** на ветке `main` — преемник **shell-for-ytdlp** (v0.1.7)
+- 🎨 Полный редизайн на CustomTkinter, модульная архитектура `core/` + `ui/`
+- 🖼️ Системный трей, буфер обмена, звуки, сохранение окон, CI + VirusTotal
+- 📦 Бинарники yt-dlp/ffmpeg не в git — загрузка в `utilities/` при первом запуске
+- 📝 Release notes на английском: [.github/release-notes/v0.2.0.md](.github/release-notes/v0.2.0.md)
 
 ### v1.1 (2026-06-29)
 - 🖼️ Стабильный системный трей: один lifecycle pystray, safe exit, надёжное сворачивание
