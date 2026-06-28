@@ -128,10 +128,20 @@ jobs:
 
       - name: Generate release notes
         shell: pwsh
+        env:
+          VT_EXE_ANALYSIS: ${{ steps.virustotal_scan_exe.outputs.analysis }}
+          VT_SOURCE_ANALYSIS: ${{ steps.virustotal_scan_source.outputs.analysis }}
         run: |
+          function Get-VirusTotalUrl([string]$analysis) {
+            if ($analysis -match '=(https://.+)$') { return $Matches[1] }
+            return $analysis
+          }
+
           $tag = '${{ github.ref_name }}'
           $notesFile = 'release_notes.txt'
           $customNotes = ".github/release-notes/$tag.md"
+          $exeUrl = Get-VirusTotalUrl $env:VT_EXE_ANALYSIS
+          $sourceUrl = Get-VirusTotalUrl $env:VT_SOURCE_ANALYSIS
 
           if (Test-Path $customNotes) {
             Get-Content $customNotes -Raw | Set-Content -Path $notesFile -Encoding utf8
@@ -146,8 +156,8 @@ jobs:
 
           Add-Content -Path $notesFile -Value ""
           Add-Content -Path $notesFile -Value "#### VirusTotal Report"
-          Add-Content -Path $notesFile -Value "- [${{ env.APP_NAME }}.exe](${{ steps.virustotal_scan_exe.outputs.analysis }})"
-          Add-Content -Path $notesFile -Value "- [main.py](${{ steps.virustotal_scan_source.outputs.analysis }})"
+          Add-Content -Path $notesFile -Value "- [${{ env.APP_NAME }}.exe]($exeUrl)"
+          Add-Content -Path $notesFile -Value "- [main.py]($sourceUrl)"
 
           Write-Host "--- Release notes ---"
           Get-Content $notesFile | Write-Host
