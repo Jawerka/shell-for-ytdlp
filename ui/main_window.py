@@ -32,7 +32,7 @@ logger = logging.getLogger('UI-for-ytdlp.main_window')
 from core.config import ConfigManager
 from core.logger import GUILogger
 from core.downloader import YouTubeDownloader
-from core.utils import get_clipboard_url, validate_url_for_ui, find_cookies_in_utilities, normalize_path_for_display, is_supported_video_url
+from core.utils import get_clipboard_url, validate_url_for_ui, find_cookies_in_utilities, normalize_path_for_display
 from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
 from core.notifications import send_download_complete, send_download_error
@@ -56,7 +56,7 @@ from ui.layout_config import (
     BUTTON_GAP,
 )
 
-from core.tray_manager import TrayManager
+from core.tray_manager import TrayManager, PYSTRAY_AVAILABLE
 
 
 class MainWindow(ctk.CTk):
@@ -75,20 +75,37 @@ class MainWindow(ctk.CTk):
         self.icon_clear = IconManager.get("clear", "✕")
         self.icon_paste = IconManager.get("paste", "📋")
 
-        # Инициализация монитора буфера обмена
+        # Инициализация монитора буфера обмена (polling в главном потоке Tk)
         self.clipboard_monitor = ClipboardMonitor(
             check_interval=2.0,
-            on_url_detected=self._on_clipboard_url_detected
+            on_url_detected=self._on_clipboard_url_detected,
+            root_window=self,
         )
 
         # Инициализация менеджера звуковых эффектов
         self.sound_manager = SoundManager(enabled=True, config_manager=self.config_manager)
 
-        # Инициализация менеджера трея (будет создан при сворачивании)
-        self.tray_manager: Optional[TrayManager] = None
+        self._tray_ready = False
+        self._suppress_tray_unmap = False
+        self._shutting_down = False
 
         setup_theme()
         self._setup_window()
+
+        self.tray_manager = TrayManager(
+            clipboard_monitor=self.clipboard_monitor,
+            sound_manager=self.sound_manager,
+            config_manager=self.config_manager,
+            on_restore=self._restore_from_tray,
+            on_paste_and_download=self._paste_and_download_from_tray,
+            on_open_settings=self._open_settings_from_tray,
+            on_exit=self._exit_application,
+            root_window=self,
+        )
+        if PYSTRAY_AVAILABLE:
+            self.tray_manager.prepare()
+        self._tray_ready = True
+
         self._create_ui()
         self._setup_hotkeys()
         self._init_path_label()
@@ -179,25 +196,6 @@ class MainWindow(ctk.CTk):
         self._wm_icon_photo = ImageTk.PhotoImage(img)
         self.iconphoto(True, self._wm_icon_photo)
 
-    def _center_window(self, width: int, height: int) -> None:
-        """
-        Расположить окно по центру экрана.
-
-        Args:
-            width: Ширина окна
-            height: Высота окна
-        """
-        # Получаем размеры экрана
-        screen_width = self.winfo_screenwidth()
-        screen_height = self.winfo_screenheight()
-
-        # Вычисляем координаты центра
-        pos_x = (screen_width // 2) - (width // 2)
-        pos_y = (screen_height // 2) - (height // 2)
-
-        # Устанавливаем позицию
-        self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
-
     def _save_window_position(self) -> None:
         """Сохранить позицию окна в настройках (размеры не сохраняем)."""
         # Получаем текущую позицию
@@ -242,14 +240,8 @@ class MainWindow(ctk.CTk):
             self._check_clipboard_and_download()
 
     def _on_clipboard_url_detected(self, url: str) -> None:
-        """
-        Обработать URL, обнаруженный в буфере обмена.
-
-        Args:
-            url: Обнаруженный URL
-        """
-        # Используем call_soon_threadsafe для безопасного вызова из потока
-        self.after(0, lambda: self._handle_clipboard_url(url))
+        """Обработать URL, обнаруженный в буфере обмена."""
+        self._handle_clipboard_url(url)
 
     def _handle_clipboard_url(self, url: str) -> None:
         """
@@ -468,17 +460,7 @@ class MainWindow(ctk.CTk):
             if self.downloader:
                 self.downloader.cancel()
                 self.downloader = None
-    
-    def _check_clipboard_and_download(self) -> None:
-        """Проверить буфер обмена и начать загрузку если есть URL."""
-        url = get_clipboard_url()
-        if url:
-            self.url_input.set_url(url)
-            self.log_viewer.info(f"Обнаружена ссылка в буфере: {url}")
-            self.after(800, self._start_download)
-        else:
-            self.log_viewer.info("Вставьте URL или нажмите кнопку Скачать")
-    
+
     def _on_url_paste(self) -> None:
         """Обработчик вставки URL."""
         url = self.url_input.get_url()
@@ -923,12 +905,6 @@ class MainWindow(ctk.CTk):
         except tk.TclError:
             logger.debug("Событие <Iconify> недоступно в этой сборке Tk, трей только через <Unmap>")
 
-    # Drag & Drop требует tkinterdnd2, отключено до установки зависимости
-    # def _setup_drag_and_drop(self) -> None:
-    #     """Настроить поддержку Drag & Drop."""
-    #     self.drop_target_register()
-    #     self.bind("<<Drop>>", self._on_drop)
-
     def _cancel_download(self) -> None:
         """Отменить загрузку."""
         if self.is_downloading:
@@ -937,69 +913,56 @@ class MainWindow(ctk.CTk):
                 self.log_viewer.warning("Загрузка отменена пользователем")
 
     def _schedule_tray_minimize_check(self, event=None) -> None:
-        """Запланировать проверку «свернули в панель задач → уйти в трей» после обновления WM."""
+        """Запланировать проверку «свернули → уйти в трей» после обновления WM."""
+        if not self._tray_ready or self._suppress_tray_unmap or self._shutting_down:
+            return
+        if event is not None and event.widget is not self:
+            return
         self.after_idle(self._try_minimize_to_tray_from_wm)
+        self.after(50, self._try_minimize_to_tray_from_wm)
+        self.after(150, self._try_minimize_to_tray_from_wm)
+
+    def _is_wm_minimized(self) -> bool:
+        try:
+            if self.state() == 'iconic':
+                return True
+            return self.state() == 'normal' and not self.winfo_viewable()
+        except tk.TclError:
+            return False
 
     def _try_minimize_to_tray_from_wm(self) -> None:
-        """Если окно в состоянии iconic — скрыть и показать иконку трея."""
+        """Если окно свёрнуто WM — скрыть и показать иконку трея."""
         try:
             if not self.winfo_exists():
                 return
         except Exception:
             return
+        if self._shutting_down or self._suppress_tray_unmap:
+            return
         if self.tray_manager and self.tray_manager.is_visible():
             return
-        if self.state() != 'iconic':
+        if not self._is_wm_minimized():
             return
         self._minimize_to_tray()
 
     def _minimize_to_tray(self) -> None:
         """Свернуть окно в трей."""
-        # Скрыть окно
-        self.withdraw()
-        
-        # Создать и показать иконку в трее если ещё не создана
-        if self.tray_manager is None:
-            self.tray_manager = TrayManager(
-                clipboard_monitor=self.clipboard_monitor,
-                sound_manager=self.sound_manager,
-                config_manager=self.config_manager,
-                on_restore=self._restore_from_tray,
-                on_paste_and_download=self._paste_and_download_from_tray,
-                on_open_settings=self._open_settings_from_tray,
-                on_exit=self._exit_application,
-                root_window=self
-            )
-        
-        if not self.tray_manager.is_visible():
-            self.tray_manager.show()
-        
+        if not PYSTRAY_AVAILABLE or not self.tray_manager or not self.tray_manager.is_ready():
+            logger.warning("_minimize_to_tray: трей недоступен, окно остаётся на панели задач")
+            return
+
+        self.tray_manager.show()
+        self._suppress_tray_unmap = True
+        try:
+            self.withdraw()
+        finally:
+            self.after(100, lambda: setattr(self, '_suppress_tray_unmap', False))
+
         logger.debug("_minimize_to_tray: Окно свёрнуто в трей")
 
     def _on_closing(self) -> None:
         """Обработчик закрытия окна (крестик) — полное закрытие приложения."""
-        logger.debug("_on_closing: Закрытие приложения")
-
-        # Сохранить позицию окна перед закрытием
-        self._save_window_position()
-
-        # Остановить трей если есть
-        if self.tray_manager:
-            self.tray_manager.stop()
-
-        # Остановить мониторинг буфера обмена
-        if self.clipboard_monitor.is_running():
-            self.clipboard_monitor.stop()
-
-        # Остановить звуковой менеджер
-        self.sound_manager.shutdown()
-
-        # Сохранить конфигурацию
-        self.config_manager.save()
-        logger.debug("_on_closing: Конфигурация сохранена")
-
-        # Закрыть окно
-        self.destroy()
+        self._shutdown_application()
 
     def _restore_from_tray(self) -> None:
         """Восстановить окно из трея (вызывается из главного потока)."""
@@ -1011,8 +974,6 @@ class MainWindow(ctk.CTk):
 
     def _paste_and_download_from_tray(self) -> None:
         """Вставить URL из буфера и начать загрузку (из трея)."""
-        from core.utils import get_clipboard_url
-        
         url = get_clipboard_url()
         if url:
             self.url_input.set_url(url)
@@ -1023,28 +984,30 @@ class MainWindow(ctk.CTk):
 
     def _open_settings_from_tray(self) -> None:
         """Открыть настройки из трея."""
-        # Восстановить окно перед открытием настроек
         self._restore_from_tray()
         self.after(200, self._open_settings)
 
     def _exit_application(self) -> None:
-        """Полный выход из приложения."""
-        logger.debug("_exit_application: Выход из приложения")
-        
-        # Остановить трей
-        if self.tray_manager:
-            self.tray_manager.stop()
-        
-        # Остановить мониторинг
+        """Полный выход из приложения (из меню трея)."""
+        self._shutdown_application()
+
+    def _shutdown_application(self) -> None:
+        """Единый shutdown: трей, clipboard, звук, config, destroy."""
+        if self._shutting_down:
+            return
+        self._shutting_down = True
+        logger.debug("_shutdown_application: Завершение приложения")
+
+        self._save_window_position()
+
         if self.clipboard_monitor.is_running():
             self.clipboard_monitor.stop()
-        
-        # Остановить звук
+
         self.sound_manager.shutdown()
-        
-        # Сохранить конфиг
         self.config_manager.save()
-        logger.debug("_exit_application: Конфигурация сохранена")
-        
-        # Закрыть окно
+
+        if self.tray_manager:
+            self.tray_manager.stop()
+
+        logger.debug("_shutdown_application: Конфигурация сохранена, ресурсы освобождены")
         self.destroy()

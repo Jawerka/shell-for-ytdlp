@@ -13,7 +13,12 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+_YTDLP_PATH = os.path.join(project_root, 'utilities', 'yt-dlp.exe')
+_HAS_YTDLP = os.path.isfile(_YTDLP_PATH)
 
+
+@pytest.mark.integration
+@pytest.mark.skipif(not _HAS_YTDLP, reason="utilities/yt-dlp.exe not installed")
 class TestEncoding:
     """Тесты кодировки вывода yt-dlp."""
 

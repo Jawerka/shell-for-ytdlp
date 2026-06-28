@@ -1,6 +1,6 @@
 <div align="center">
     <h1>UI-for-ytdlp</h1>
-    <img src="https://raw.githubusercontent.com/Jawerka/UI-for-ytdlp/main/icon.png" alt="UI-for-ytdlp icon" width="200" height="200" />
+    <img src="https://raw.githubusercontent.com/Jawerka/shell-for-ytdlp/master/icon.png" alt="UI-for-ytdlp icon" width="200" height="200" />
 </div>
 
 **Modern GUI for yt-dlp built with customtkinter.**
@@ -11,7 +11,7 @@
 
 ---
 
-## ✨ Features
+## Features
 
 ### Основные возможности:
 - 📥 Загрузка видео с YouTube и других поддерживаемых сайтов
@@ -19,10 +19,17 @@
 - 🛡️ Автоматическое удаление спонсорских вставок (SponsorBlock)
 - ⏭️ Продолжение прерванных загрузок
 - 🍪 Поддержка cookies.txt
-- 📋 Авто-определение URL из буфера обмена
+- 📋 Авто-определение URL из буфера обмена (интервал ~2 с, главный поток Tk)
 - 🔔 Звуковые уведомления (начало/завершение загрузки)
+- 🖼️ Сворачивание в системный трей (кнопка «Свернуть»; крестик — выход)
 - 🎨 Современный тёмный интерфейс
 - 💾 Сохранение позиции окон между запусками
+
+### Системный трей:
+- **Свернуть** — окно скрывается, иконка в области уведомлений
+- **ЛКМ / «Показать окно»** — восстановление окна
+- **ПКМ** — меню: перехват буфера, звуки, вставить и скачать, настройки, выход
+- **Крестик (X)** — полное закрытие приложения (иконка удаляется из трея)
 
 ---
 
@@ -63,6 +70,11 @@ pip install -r requirements.txt
 python main.py
 ```
 
+Подробное логирование: `UI_FOR_YTDLP_DEBUG=1 python main.py` (Windows: `set UI_FOR_YTDLP_DEBUG=1`).
+
+### Буфер обмена:
+Включите «Перехват ссылок из буфера» в настройках. При копировании поддерживаемого URL приложение автоматически начнёт загрузку.
+
 ---
 
 ## 🏗️ Сборка exe-файла
@@ -93,37 +105,40 @@ UI-for-ytdlp/
 ├── build.py                # Скрипт сборки
 ├── UI-for-ytdlp.spec       # Spec-файл PyInstaller
 ├── requirements.txt        # Зависимости Python
-├── README.md              # Документация
-├── .gitignore             # Git ignore
-├── icon.ico               # Иконка приложения
-├── core/                  # Ядро приложения
-│   ├── theme.py           # Дизайн-система и цвета
-│   ├── icons.py           # Менеджер иконок
-│   ├── utils.py           # Утилиты (валидация URL, буфер обмена)
-│   ├── logger.py          # Логгер для GUI
-│   ├── config.py          # Менеджер конфигурации
-│   ├── downloader.py      # Загрузчик через yt-dlp
-│   ├── updater.py         # Обновление утилит
-│   ├── notifications.py   # Системные уведомления
-│   ├── sound_manager.py   # Звуковые эффекты
+├── README.md               # Документация
+├── .gitignore              # Git ignore
+├── icon.ico                # Иконка приложения (окно + трей)
+├── icon.png                # Баннер README
+├── core/                   # Ядро приложения
+│   ├── theme.py            # Дизайн-система и цвета
+│   ├── icons.py            # Менеджер иконок
+│   ├── utils.py            # Утилиты (URL, буфер обмена)
+│   ├── logger.py           # Логгер для GUI
+│   ├── config.py           # Менеджер конфигурации
+│   ├── downloader.py       # Загрузчик через yt-dlp
+│   ├── updater.py          # Обновление утилит
+│   ├── notifications.py    # Системные уведомления
+│   ├── sound_manager.py    # Звуковые эффекты
 │   ├── clipboard_monitor.py # Мониторинг буфера обмена
-│   └── deno_installer.py  # Установка deno (опционально)
-├── ui/                    # Пользовательский интерфейс
-│   ├── main_window.py     # Главное окно
-│   ├── layout_config.py   # Настройки разметки UI
-│   ├── tooltip.py         # Всплывающие подсказки
-│   └── components/        # UI компоненты
-│       ├── url_input.py   # Поле ввода URL
-│       ├── log_viewer.py  # Просмотр логов
-│       ├── progress_bar.py # Прогресс-бар
-│       └── settings_dialog.py # Диалог настроек
-├── utilities/             # Утилиты (загружаются автоматически)
-│   ├── yt-dlp.exe        # yt-dlp
-│   ├── ffmpeg.exe        # ffmpeg
-│   └── cookies.txt       # Cookies (опционально)
-└── tests/                 # Тесты
-    ├── conftest.py       # Конфигурация pytest
-    └── unit/             # Модульные тесты
+│   ├── tray_manager.py     # Системный трей
+│   └── deno_installer.py   # Установка deno (опционально)
+├── ui/                     # Пользовательский интерфейс
+│   ├── main_window.py      # Главное окно
+│   ├── layout_config.py    # Настройки разметки UI
+│   ├── tooltip.py          # Всплывающие подсказки
+│   ├── sfx/                # Звуковые файлы (start/end)
+│   └── components/         # UI компоненты
+│       ├── url_input.py
+│       ├── log_viewer.py
+│       ├── progress_bar.py
+│       └── settings_dialog.py
+├── utilities/              # Утилиты (загружаются автоматически)
+│   ├── yt-dlp.exe
+│   ├── ffmpeg.exe
+│   └── cookies.txt         # опционально
+└── tests/                  # Тесты
+    ├── conftest.py
+    └── unit/
 ```
 
 ---
@@ -166,24 +181,26 @@ UI-for-ytdlp/
 
 ### Запуск тестов:
 ```bash
-# Запустить все тесты
-pytest tests/ -v
+# Unit-тесты (без yt-dlp.exe)
+pytest tests/ -v -m "not integration"
 
-# Запустить тесты с покрытием
-pytest tests/ -v --cov=core --cov=ui
+# С покрытием
+pytest tests/ -v -m "not integration" --cov=core --cov=ui
 
-# Запустить конкретный тест
-pytest tests/unit/test_encoding.py -v
+# Integration (нужен utilities/yt-dlp.exe)
+pytest tests/ -v -m integration
 ```
 
 ### Покрытие тестами:
-- `test_config.py` — тесты конфигурации
-- `test_utils.py` — тесты утилит (валидация URL, буфер обмена)
-- `test_encoding.py` — тесты кодировки
-- `test_clipboard_monitor.py` — тесты мониторинга буфера
-- `test_sound_manager.py` — тесты звукового менеджера
-- `test_downloader.py` — тесты загрузчика
-- `test_updater.py` — тесты обновлений
+- `test_config.py` — конфигурация
+- `test_utils.py` — URL, `extract_video_url`, буфер обмена
+- `test_clipboard_monitor.py` — мониторинг буфера
+- `test_tray_manager.py` — lifecycle трея
+- `test_tray_minimize.py` — логика сворачивания
+- `test_encoding.py` — кодировка (integration, требует yt-dlp)
+- `test_sound_manager.py` — звуки
+- `test_downloader.py` — загрузчик
+- `test_updater.py` — обновления
 
 ---
 
@@ -193,10 +210,18 @@ pytest tests/unit/test_encoding.py -v
 - [SponsorBlock](https://wiki.sponsor.ajay.app/)
 - [customtkinter](https://github.com/TomSchimansky/CustomTkinter)
 - [pygame](https://github.com/pygame-community/pygame-ce) — звуковые уведомления
+- [pystray](https://github.com/moses-palmer/pystray) — системный трей
+- [pyperclip](https://github.com/asweigart/pyperclip) — буфер обмена
 
 ---
 
 ## 📝 Changelog
+
+### v1.1 (2026-06-29)
+- 🖼️ Стабильный системный трей: один lifecycle pystray, safe exit, надёжное сворачивание
+- 📋 Надёжный мониторинг буфера: polling в главном потоке, `extract_video_url`, retry
+- 🧹 Аудит кода: удалён мёртвый код, исправлены тесты, pytest в CI
+- 📝 Обновлена документация
 
 ### v1.0 (2026-03-06)
 - 💾 Сохранение позиции окон между запусками

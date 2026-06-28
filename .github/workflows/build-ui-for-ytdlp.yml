@@ -58,6 +58,11 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Run unit tests
+        run: |
+          .\venv\Scripts\Activate.ps1
+          pytest tests/ -v -m "not integration"
+
       - name: Build with PyInstaller
         run: |
           .\venv\Scripts\Activate.ps1

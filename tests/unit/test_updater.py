@@ -62,9 +62,10 @@ class TestUnzippingFFmpeg:
             
             # Мокаем os.path.exists для возврата True после "распаковки"
             with patch('core.updater.os.path.exists', return_value=True):
-                with patch('core.updater.shutil.move'):
-                    with patch('core.updater.shutil.rmtree'):
-                        unzipping_ffmpeg(temp_dirs['archive'], temp_dirs['utilities'])
+                with patch('core.updater.os.remove'):
+                    with patch('core.updater.shutil.move'):
+                        with patch('core.updater.shutil.rmtree'):
+                            unzipping_ffmpeg(temp_dirs['archive'], temp_dirs['utilities'])
 
     def test_unzipping_ffmpeg_removes_old_files(self, temp_dirs):
         """Тест что старые файлы удаляются перед распаковкой."""
@@ -180,25 +181,18 @@ class TestUpdateUtilities:
         """Тест что ffmpeg распаковывается если файлы отсутствуют."""
         mock_response = Mock()
         mock_response.getheader.return_value = '1000'
-        
-        def mock_exists(path):
-            if 'ffmpeg.exe' in path or 'ffprobe.exe' in path or 'ffplay.exe' in path:
-                return False
-            if 'zip' in path:
-                return True
-            return False
-        
+
         with patch('core.updater.urlopen', return_value=mock_response):
-            with patch('core.updater.os.path.exists', side_effect=mock_exists):
-                with patch('core.updater.unzipping_ffmpeg') as mock_unzip:
-                    result = update_utilities(
-                        'http://test.com/ffmpeg-master.zip',
-                        temp_dir
-                    )
-                    
-                    # Должна быть вызвана распаковка
-                    mock_unzip.assert_called_once()
-                    assert result is True
+            with patch('core.updater.os.path.exists', return_value=False):
+                with patch('core.updater.urlretrieve'):
+                    with patch('core.updater.unzipping_ffmpeg') as mock_unzip:
+                        result = update_utilities(
+                            'http://test.com/ffmpeg-master.zip',
+                            temp_dir
+                        )
+
+                        mock_unzip.assert_called_once()
+                        assert result is True
 
     def test_update_utilities_progress_callback(self, temp_dir):
         """Тест что вызывается callback прогресса."""
@@ -259,11 +253,10 @@ class TestUpdateLoop:
         
         progress_callback = Mock()
         
-        with patch('core.updater.update_utilities', return_value=True):
+        with patch('core.updater.update_utilities', return_value=True) as mock_update:
             update_loop(urls, temp_dir, progress_callback)
-            
-            # update_utilities должен быть вызван для каждого URL
-            assert update_utilities.call_count == 2
+
+            assert mock_update.call_count == 2
 
     def test_update_loop_creates_directory(self, temp_dir):
         """Тест что создаётся директория утилит."""

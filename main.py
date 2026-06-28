@@ -13,8 +13,8 @@ from datetime import datetime
 # ============================================================================
 # НАСТРОЙКА DEBUG РЕЖИМА
 # ============================================================================
-# Установите True для включения подробного логирования в консоль
-DEBUG_MODE = True
+# Установите True или env UI_FOR_YTDLP_DEBUG=1 для подробного логирования в консоль
+DEBUG_MODE = os.environ.get('UI_FOR_YTDLP_DEBUG', '').lower() in ('1', 'true', 'yes')
 
 
 # ============================================================================
@@ -111,7 +111,8 @@ def diagnose_environment():
         'tkinter',
         'pyperclip',
         'PIL',
-        'darkdetect'
+        'darkdetect',
+        'pystray',
     ]
     
     for module in required_modules:

@@ -155,6 +155,7 @@ class TestPlaySound:
         mock_pygame = MagicMock()
         mock_sound = MagicMock()
         mock_pygame.mixer.Sound.return_value = mock_sound
+        mock_pygame.mixer.get_busy.return_value = False
         
         with patch('core.sound_manager.os.path.exists', return_value=True):
             with patch('core.sound_manager.SoundManager._init_pygame', return_value=True):

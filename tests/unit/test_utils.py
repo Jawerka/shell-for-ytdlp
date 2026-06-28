@@ -16,6 +16,7 @@ import os
 from core.utils import (
     is_valid_url,
     get_clipboard_url,
+    extract_video_url,
     validate_url_for_ui,
     find_cookies_txt,
 )
@@ -111,43 +112,74 @@ class TestGetClipboardUrl:
     """Тесты для функции get_clipboard_url()."""
 
     def test_valid_url_in_clipboard(self):
-        """Проверка получения валидного URL из буфера обмена."""
         with patch('core.utils.pyperclip.paste') as mock_paste:
-            mock_paste.return_value = 'https://youtube.com/watch?v=abc123'
-            with patch('core.utils.is_valid_url') as mock_is_valid:
-                mock_is_valid.return_value = True
-                result = get_clipboard_url()
-                assert result == 'https://youtube.com/watch?v=abc123'
+            mock_paste.return_value = 'https://www.youtube.com/watch?v=abc1234567'
+            result = get_clipboard_url()
+            assert result == 'https://www.youtube.com/watch?v=abc1234567'
 
     def test_invalid_url_in_clipboard(self):
-        """Проверка получения невалидного URL из буфера обмена."""
         with patch('core.utils.pyperclip.paste') as mock_paste:
-            mock_paste.return_value = 'not a url'
-            with patch('core.utils.is_valid_url') as mock_is_valid:
-                mock_is_valid.return_value = False
-                result = get_clipboard_url()
-                assert result is None
+            mock_paste.return_value = 'not a url at all here'
+            result = get_clipboard_url()
+            assert result is None
 
     def test_empty_clipboard(self):
-        """Проверка пустого буфера обмена."""
         with patch('core.utils.pyperclip.paste') as mock_paste:
             mock_paste.return_value = ''
             result = get_clipboard_url()
             assert result is None
 
     def test_whitespace_clipboard(self):
-        """Проверка буфера с пробелами."""
         with patch('core.utils.pyperclip.paste') as mock_paste:
             mock_paste.return_value = '   '
             result = get_clipboard_url()
             assert result is None
 
     def test_clipboard_exception(self):
-        """Проверка обработки исключения при чтении буфера."""
         with patch('core.utils.pyperclip.paste') as mock_paste:
             mock_paste.side_effect = Exception('Clipboard error')
             result = get_clipboard_url()
             assert result is None
+
+    def test_no_http_request(self):
+        with patch('core.utils.pyperclip.paste') as mock_paste:
+            mock_paste.return_value = 'https://www.youtube.com/watch?v=abc1234567'
+            with patch('core.utils.urlopen') as mock_urlopen:
+                result = get_clipboard_url()
+                assert result is not None
+                mock_urlopen.assert_not_called()
+
+
+class TestExtractVideoUrl:
+    """Тесты для extract_video_url()."""
+
+    def test_plain_https_url(self):
+        url = 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+        assert extract_video_url(url) == url
+
+    def test_url_in_quotes(self):
+        assert extract_video_url(
+            '"https://www.youtube.com/watch?v=dQw4w9WgXcQ"'
+        ) == 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+
+    def test_url_with_trailing_period(self):
+        result = extract_video_url('https://www.youtube.com/watch?v=dQw4w9WgXcQ.')
+        assert result == 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+
+    def test_url_without_protocol(self):
+        result = extract_video_url('youtube.com/watch?v=dQw4w9WgXcQ')
+        assert result == 'https://youtube.com/watch?v=dQw4w9WgXcQ'
+
+    def test_url_embedded_in_text(self):
+        result = extract_video_url('Смотри https://youtu.be/dQw4w9WgXcQ сейчас')
+        assert result == 'https://youtu.be/dQw4w9WgXcQ'
+
+    def test_multiline_second_line(self):
+        text = "intro\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        assert extract_video_url(text) == 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+
+    def test_unsupported_domain(self):
+        assert extract_video_url('https://example.com/video') is None
 
 
 class TestValidateUrlForUi:
@@ -242,20 +274,22 @@ class TestFindCookiesTxt:
 
     def test_multiple_cookies_files(self):
         """Проверка выбора последнего изменённого файла."""
+        import ntpath
         with patch('core.utils.os.walk') as mock_walk:
-            mock_walk.return_value = [
-                (r'C:\fake\path', [], ['cookies1.txt', 'cookies2.txt'])
-            ]
-            with patch('core.utils.os.path.getmtime') as mock_mtime:
-                # cookies2.txt новее
-                def get_mtime(path):
-                    if 'cookies1' in path:
-                        return 1234567890
-                    return 1234567899
-                mock_mtime.side_effect = get_mtime
-                result = find_cookies_txt(r'C:\fake\path')
-                assert result is not None
-                assert 'cookies2.txt' in result
+            with patch('core.utils.os.path.join', ntpath.join):
+                mock_walk.return_value = [
+                    (r'C:\fake\path\older', [], ['cookies.txt']),
+                    (r'C:\fake\path\newer', [], ['cookies.txt']),
+                ]
+                with patch('core.utils.os.path.getmtime') as mock_mtime:
+                    def get_mtime(path):
+                        if 'older' in path:
+                            return 1234567890
+                        return 1234567899
+                    mock_mtime.side_effect = get_mtime
+                    result = find_cookies_txt(r'C:\fake\path')
+                    assert result is not None
+                    assert 'newer' in result
 
     def test_cookies_in_subdirectory(self):
         """Проверка поиска в поддиректории."""
