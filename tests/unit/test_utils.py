@@ -306,3 +306,36 @@ class TestFindCookiesTxt:
                     assert result is not None
                     assert 'cookies.txt' in result
                     assert 'subdir' in result
+
+
+class TestIsSupportedVideoUrl:
+    def test_youtube_url(self):
+        from core.utils import is_supported_video_url
+        assert is_supported_video_url('https://www.youtube.com/watch?v=abc') is True
+
+    def test_youtu_be(self):
+        from core.utils import is_supported_video_url
+        assert is_supported_video_url('https://youtu.be/abc123') is True
+
+    def test_unknown_domain(self):
+        from core.utils import is_supported_video_url
+        assert is_supported_video_url('https://unknown.example/video') is False
+
+    def test_no_protocol(self):
+        from core.utils import is_supported_video_url
+        assert is_supported_video_url('youtube.com/watch?v=abc') is False
+
+
+class TestNormalizePathForDisplay:
+    def test_forward_slashes_to_backslashes(self):
+        from core.utils import normalize_path_for_display
+        assert normalize_path_for_display('C:/Users/Downloads') == 'C:\\Users\\Downloads'
+
+    def test_empty_path(self):
+        from core.utils import normalize_path_for_display
+        assert normalize_path_for_display('') == ''
+
+    def test_already_windows_path(self):
+        from core.utils import normalize_path_for_display
+        path = 'C:\\Users\\Downloads'
+        assert normalize_path_for_display(path) == path

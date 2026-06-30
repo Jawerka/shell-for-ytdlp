@@ -85,7 +85,7 @@ def build_with_pyinstaller():
 
 def main():
     """Main function."""
-    print("Shell for yt-dlp - Build Script")
+    print("UI-for-ytdlp - Build Script")
     print("=" * 50)
     
     # Clean

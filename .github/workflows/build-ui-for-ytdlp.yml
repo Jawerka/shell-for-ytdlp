@@ -65,7 +65,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run unit tests
-        run: pytest tests/ -v -m "not integration"
+        run: pytest tests/ -m "not integration" --cov=core --cov-report=term-missing --cov-fail-under=70
 
       - name: Build with PyInstaller
         run: python -m PyInstaller --clean --noconfirm UI-for-ytdlp.spec

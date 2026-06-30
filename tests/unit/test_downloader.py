@@ -269,18 +269,18 @@ class TestDownloadValidation:
 
     def test_download_checks_path_exists(self, downloader):
         """Тест что проверяется существование пути."""
-        with patch('core.downloader.os.path.exists', return_value=False):
-            result = downloader.download('https://youtube.com/watch?v=test')
-            
-            assert result is False
-            downloader.log_callback.assert_called()
-            # Проверяем что было вызвано логирование ошибки
-            calls = downloader.log_callback.call_args_list
-            error_called = any(
-                'не существует' in str(call) or 'not exist' in str(call)
-                for call in calls
-            )
-            assert error_called
+        with patch('core.downloader.ensure_download_directory', return_value=(False, 'Путь сохранения не существует')):
+            with patch('core.downloader.os.path.exists', return_value=True):
+                result = downloader.download('https://youtube.com/watch?v=test')
+
+                assert result is False
+                downloader.log_callback.assert_called()
+                calls = downloader.log_callback.call_args_list
+                error_called = any(
+                    'не существует' in str(call) or 'Путь' in str(call)
+                    for call in calls
+                )
+                assert error_called
 
     def test_download_checks_ytdlp_exists(self, downloader):
         """Тест что проверяется существование yt-dlp."""

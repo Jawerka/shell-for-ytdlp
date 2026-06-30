@@ -20,6 +20,14 @@
 from .config import ConfigManager, DEFAULT_CONFIG, get_config_path, get_utilities_path
 from .logger import GUILogger, LogLevel
 from .downloader import YouTubeDownloader
+from .pipeline import (
+    validate_url_for_download,
+    ensure_download_directory,
+    check_ytdlp_ready,
+    classify_utility_update_result,
+    get_ytdlp_download_url,
+    UtilitySeverity,
+)
 from .updater import update_loop, update_utilities, unzipping_ffmpeg
 from .utils import (
     is_valid_url,
@@ -47,7 +55,15 @@ __all__ = [
     
     # Downloader
     'YouTubeDownloader',
-    
+
+    # Pipeline
+    'validate_url_for_download',
+    'ensure_download_directory',
+    'check_ytdlp_ready',
+    'classify_utility_update_result',
+    'get_ytdlp_download_url',
+    'UtilitySeverity',
+
     # Updater
     'update_loop',
     'update_utilities',

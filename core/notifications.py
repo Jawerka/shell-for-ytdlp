@@ -18,10 +18,10 @@ logger = logging.getLogger('UI-for-ytdlp.notifications')
 class NotificationManager:
     """Менеджер системных уведомлений."""
 
-    def __init__(self):
+    def __init__(self, config_manager: Optional[ConfigManager] = None):
         """Инициализация менеджера уведомлений."""
         logger.debug("NotificationManager: Инициализация")
-        self.config_manager = ConfigManager()
+        self.config_manager = config_manager or ConfigManager()
         self._notification = None
 
     def _get_notification(self):

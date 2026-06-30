@@ -8,15 +8,12 @@ from __future__ import annotations
 import os
 import sys
 import threading
-import socket
 import logging
 from typing import Optional, List, Tuple
 
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog
-from urllib.request import urlopen
-from urllib.error import HTTPError, URLError
 from PIL import Image, ImageTk
 
 # Определение корневой директории проекта
@@ -33,6 +30,11 @@ from core.config import ConfigManager
 from core.logger import GUILogger
 from core.downloader import YouTubeDownloader
 from core.utils import get_clipboard_url, validate_url_for_ui, find_cookies_in_utilities, normalize_path_for_display
+from core.pipeline import (
+    validate_url_for_download,
+    check_ytdlp_ready,
+    get_ytdlp_download_url,
+)
 from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
 from core.notifications import send_download_complete, send_download_error
@@ -625,26 +627,10 @@ class MainWindow(ctk.CTk):
         Returns:
             Кортеж (валиден, результат)
         """
-        if not url:
-            return False, "Введите URL"
-
-        url = url.strip()
-        if not url.startswith(('http://', 'https://')):
-            return False, "URL должен начинаться с http:// или https://"
-
-        try:
-            response = urlopen(url, timeout=10)
-            response.close()
-            return True, url
-        except HTTPError as err:
-            self.log_viewer.warning(f"Сервер ответил кодом {err.code}")
-            return True, url
-        except socket.timeout:
-            return False, "Превышено время ожидания (таймаут)"
-        except URLError as err:
-            return False, f"Ошибка сети: {err.reason}"
-        except ValueError:
-            return False, "Неверный формат URL"
+        ok, result, warning = validate_url_for_download(url)
+        if warning:
+            self.log_viewer.warning(warning)
+        return ok, result
     
     def _start_download(self) -> None:
         """Начать загрузку."""
@@ -698,19 +684,59 @@ class MainWindow(ctk.CTk):
     def _update_and_download(self, url: str) -> None:
         """
         Поток обновления утилит и загрузки.
-        
+
         Args:
             url: URL для загрузки
         """
-        # Обновление утилит
-        self._update_utilities()
-        
-        # Если загрузка ещё актуальна - продолжаем
-        if not self.is_downloading:
-            return
-        
-        # Запуск загрузки
-        self._download_thread(url)
+        download_success = False
+        download_attempted = False
+        try:
+            self._update_utilities()
+
+            if not self.is_downloading:
+                return
+
+            ready, message = check_ytdlp_ready(self.config_manager)
+            if not ready:
+                ready, message = self._retry_ytdlp_download(message)
+
+            if not ready:
+                self.after(0, lambda m=message: self.log_viewer.error(m))
+                return
+
+            download_attempted = True
+            download_success = self._download_thread(url)
+        except Exception as e:
+            logger.error(f"_update_and_download: Необработанная ошибка: {e}", exc_info=True)
+            self.after(0, lambda err=e: self.log_viewer.error(f"Ошибка загрузки: {err}"))
+        finally:
+            self.after(0, self._on_download_complete)
+
+            if download_success:
+                self.config_manager.set('LAST_DOWNLOADED_URL', url)
+                self.config_manager.save()
+                self.after(0, lambda: self.log_viewer.success("Загрузка завершена"))
+                self.after(100, lambda: send_download_complete("Загрузка завершена", "Видео успешно загружено"))
+                self.after(150, lambda: self.sound_manager.play_end_download())
+            elif download_attempted:
+                self.after(0, lambda: self.log_viewer.error("Ошибка загрузки"))
+                self.after(100, lambda: send_download_error("Ошибка загрузки", "Произошла ошибка при загрузке видео"))
+
+    def _retry_ytdlp_download(self, initial_message: str) -> Tuple[bool, str]:
+        """Повторная попытка скачать yt-dlp, если бинарник отсутствует."""
+        ytdlp_url = get_ytdlp_download_url(self.config_manager)
+        utilities_path = self.config_manager.get('UTILITIES_PATH', '')
+
+        if not ytdlp_url or not utilities_path:
+            return False, initial_message
+
+        self.after(0, lambda: self.log_viewer.info("Повторная загрузка yt-dlp..."))
+
+        from core.updater import update_utilities
+        if update_utilities(ytdlp_url, utilities_path):
+            return check_ytdlp_ready(self.config_manager)
+
+        return False, initial_message
 
     def _update_utilities(self) -> None:
         """Обновить утилиты в отдельном потоке.
@@ -828,12 +854,15 @@ class MainWindow(ctk.CTk):
         self.after(0, lambda: self.progress_bar.reset())
         logger.debug("_update_utilities: Завершено")
     
-    def _download_thread(self, url: str) -> None:
+    def _download_thread(self, url: str) -> bool:
         """
         Поток загрузки.
 
         Args:
             url: URL для загрузки
+
+        Returns:
+            True если загрузка успешна
         """
         def log_callback(message: str, level: str):
             self.after(0, lambda: getattr(self.log_viewer, level)(message))
@@ -842,23 +871,7 @@ class MainWindow(ctk.CTk):
             self.after(0, lambda: self.progress_bar.update_progress(percent, info=info))
 
         self.downloader = YouTubeDownloader(self.config_manager, log_callback, progress_callback)
-        success = self.downloader.download(url)
-
-        self.after(0, self._on_download_complete)
-
-        if success:
-            # Сохраняем последний успешно загруженный URL
-            self.config_manager.set('LAST_DOWNLOADED_URL', url)
-            self.config_manager.save()
-            
-            self.after(0, lambda: self.log_viewer.success("Загрузка завершена"))
-            self.after(100, lambda: send_download_complete("Загрузка завершена", "Видео успешно загружено"))
-            self.after(150, lambda: self.sound_manager.play_end_download())
-        else:
-            self.after(0, lambda: self.log_viewer.error("Ошибка загрузки"))
-            self.after(100, lambda: send_download_error("Ошибка загрузки", "Произошла ошибка при загрузке видео"))
-            # Звук ошибки зарезервирован на будущее
-            # self.after(150, lambda: self.sound_manager.play_error_download())
+        return self.downloader.download(url)
 
     def _on_download_complete(self) -> None:
         """Завершение загрузки."""

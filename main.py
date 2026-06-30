@@ -62,13 +62,15 @@ if hasattr(sys, '_MEIPASS'):
     _MEIPASS_PATH = sys._MEIPASS
     os.chdir(os.path.dirname(sys.executable))
     project_root = os.path.dirname(sys.executable)
-    print(f"[DEBUG] PyInstaller mode: {_MEIPASS_PATH}", file=sys.stdout)
+    if DEBUG_MODE:
+        print(f"[DEBUG] PyInstaller mode: {_MEIPASS_PATH}", file=sys.stdout)
 else:
     # Запуск из исходного кода
     project_root = os.path.dirname(os.path.abspath(__file__))
     if project_root not in sys.path:
         sys.path.insert(0, project_root)
-    print(f"[DEBUG] Development mode: {project_root}", file=sys.stdout)
+    if DEBUG_MODE:
+        print(f"[DEBUG] Development mode: {project_root}", file=sys.stdout)
 
 
 # ============================================================================

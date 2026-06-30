@@ -13,6 +13,7 @@ import logging
 from typing import Callable, Optional, Tuple, List
 
 from .config import ConfigManager
+from .pipeline import ensure_download_directory
 from .utils import find_cookies_txt, normalize_path_for_display
 
 # Логгер для отладки
@@ -91,20 +92,14 @@ class YouTubeDownloader:
         logger.debug(f"_build_command: utilities_path = {utilities_path}")
         logger.debug(f"_build_command: ytdlp_path = {ytdlp_path}")
 
-        # Для Windows используем двойные кавычки для путей с пробелами
-        def quote_path(path: str) -> str:
-            """Экранировать путь для Windows."""
-            if ' ' in path:
-                return f'"{path}"'
-            return path
-
         # Всегда используем лучшее качество видео и аудио
+        # Пути передаём как есть: subprocess.Popen(..., shell=False) сам экранирует аргументы
         cmd = [
             ytdlp_path,
-            '-P', quote_path(download_path),
+            '-P', download_path,
             *self.YTDLP_OPTIONS,
             # Путь к ffmpeg передаётся как путь к директории (согласно документации yt-dlp)
-            '--ffmpeg-location', quote_path(utilities_path),
+            '--ffmpeg-location', utilities_path,
         ]
 
         logger.debug(f"_build_command: Базовая команда: {len(cmd)} аргументов")
@@ -116,7 +111,7 @@ class YouTubeDownloader:
             logger.debug(f"_build_command: Используется cookies.txt из конфигурации: {cookies_file}")
             self._log(f"Используется cookies.txt")
             cmd.append('--cookies')
-            cmd.append(quote_path(cookies_file))
+            cmd.append(cookies_file)
         else:
             # Если не указан в конфигурации, ищем в utilities
             cookies_file = find_cookies_txt(utilities_path)
@@ -124,7 +119,7 @@ class YouTubeDownloader:
                 logger.debug(f"_build_command: Найден cookies.txt: {cookies_file}")
                 self._log(f"Найден cookies.txt: {os.path.basename(cookies_file)}")
                 cmd.append('--cookies')
-                cmd.append(quote_path(cookies_file))
+                cmd.append(cookies_file)
             else:
                 logger.debug("_build_command: cookies.txt не найден")
 
@@ -237,10 +232,16 @@ class YouTubeDownloader:
         logger.debug(f"download: ytdlp_path = {ytdlp_path}")
         logger.debug(f"download: ytdlp exists = {os.path.exists(ytdlp_path)}")
         
-        # Проверка пути сохранения
-        if not download_path or not os.path.exists(download_path):
-            logger.error(f"download: Путь сохранения не существует: {download_path}")
-            self._log(f"Путь сохранения не существует: {download_path}", 'error')
+        # Проверка и создание пути сохранения
+        if not download_path:
+            logger.error("download: Путь сохранения не указан")
+            self._log("Путь сохранения не указан", 'error')
+            return False
+
+        ok, message = ensure_download_directory(download_path)
+        if not ok:
+            logger.error(f"download: {message}")
+            self._log(message, 'error')
             return False
 
         if not os.path.exists(ytdlp_path):
