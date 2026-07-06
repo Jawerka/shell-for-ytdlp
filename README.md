@@ -5,7 +5,7 @@
 
 **Modern GUI for yt-dlp built with customtkinter.**
 
-![Version](https://img.shields.io/badge/version-0.3.0-blue)
+![Version](https://img.shields.io/badge/version-0.3.1-blue)
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -35,12 +35,15 @@
 
 ## Установка
 
-### Готовый exe-файл:
-- Скачать [последнюю версию](https://github.com/Jawerka/shell-for-ytdlp/releases/latest/download/UI-for-ytdlp.exe)
-- Разместить в удобной папке
-- Запустить
+### Установщик (рекомендуется):
+- Скачать `UI-for-ytdlp-*-windows-x64-setup.exe` с [страницы релизов](https://github.com/Jawerka/shell-for-ytdlp/releases/latest)
+- Запустить установщик — приложение появится в меню «Пуск»
 
-При первом запуске `yt-dlp` и `ffmpeg` будут загружены в папку `./utilities`.
+### Portable exe:
+- Скачать [последнюю версию](https://github.com/Jawerka/shell-for-ytdlp/releases/latest/download/UI-for-ytdlp.exe)
+- Разместить в удобной папке и запустить
+
+При первом запуске `yt-dlp` и `ffmpeg` будут загружены в папку `utilities` рядом с exe (portable) или в каталог установки.
 
 ---
 
@@ -79,7 +82,13 @@ python main.py
 
 ## Сборка exe-файла
 
-### Через build.py:
+### Полный релиз (exe + zip + установщик):
+```powershell
+.\scripts\build-windows.ps1
+```
+Требуется [Inno Setup 6](https://jrsoftware.org/isinfo.php) (`choco install innosetup`).
+
+### Только exe через build.py:
 ```bash
 python build.py
 ```
@@ -216,6 +225,12 @@ pytest tests/ -v -m integration
 ---
 
 ## Changelog
+
+### v0.3.1 (2026-07-06)
+- Windows-установщик **Inno Setup** (`UI-for-ytdlp-*-windows-x64-setup.exe`) в GitHub Releases
+- Скрипты `scripts/build-windows.ps1`, `scripts/package-windows-installer.ps1`
+- Файл `VERSION` — единый источник semver для сборки
+- Release notes: [.github/release-notes/v0.3.1.md](.github/release-notes/v0.3.1.md)
 
 ### v0.3.0 (2026-07-06)
 - Подключаемый плагин **GoodGame.ru VOD** (`/vods/...` → API → m3u8 → yt-dlp); отключение через `ENABLE_GOODGAME_VOD_HANDLER` в `config.json`

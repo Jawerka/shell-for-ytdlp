@@ -52,6 +52,10 @@ build/
 dist/
 *.spec.bak
 
+# Release artifacts (Inno Setup installer + zip)
+/UI-for-ytdlp-*-windows-x64.zip
+/UI-for-ytdlp-*-windows-x64-setup.exe
+
 # -----------------------------------------------------------------------------
 # Конфигурация приложения
 # -----------------------------------------------------------------------------

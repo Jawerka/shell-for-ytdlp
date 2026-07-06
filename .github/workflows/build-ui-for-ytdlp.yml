@@ -81,11 +81,28 @@ jobs:
           $fileSize = (Get-Item $exe).Length / 1MB
           Write-Host "Build successful! File size: $([math]::Round($fileSize, 2)) MB"
 
+      - name: Install Inno Setup
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: winget install --id JRSoftware.InnoSetup -e --accept-source-agreements --accept-package-agreements --silent
+
+      - name: Package Windows release (zip + Inno Setup installer)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = '${{ env.BUILD_ID }}' -replace '^v',''
+          if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+') {
+            throw "Invalid semver for release packaging: $version"
+          }
+          $zipName = "${{ env.APP_NAME }}-$version-windows-x64.zip"
+          Compress-Archive -Path "dist\${{ env.APP_NAME }}.exe" -DestinationPath "dist\$zipName" -Force
+          Write-Host "Created dist\$zipName"
+          & .\scripts\package-windows-installer.ps1 -Version $version -ReleaseDir dist -OutputDir dist
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-${{ env.BUILD_ID }}-windows
-          path: dist/${{ env.APP_NAME }}.exe
+          path: dist/
           retention-days: 30
 
   build-release:
@@ -162,11 +179,6 @@ jobs:
           Write-Host "--- Release notes ---"
           Get-Content $notesFile | Write-Host
 
-      - name: Create ZIP archive
-        shell: pwsh
-        run: |
-          Compress-Archive -Path "dist\${{ env.APP_NAME }}.exe" -DestinationPath "${{ env.APP_NAME }}-${{ github.ref_name }}.zip"
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -174,7 +186,8 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: |
             dist/${{ env.APP_NAME }}.exe
-            ${{ env.APP_NAME }}-${{ github.ref_name }}.zip
+            dist/${{ env.APP_NAME }}-*-windows-x64.zip
+            dist/${{ env.APP_NAME }}-*-windows-x64-setup.exe
           body_path: release_notes.txt
           draft: false
           prerelease: false

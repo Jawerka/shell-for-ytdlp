@@ -91,7 +91,9 @@ python build.py
 python -m PyInstaller --clean --noconfirm UI-for-ytdlp.spec
 ```
 
-CI: `.github/workflows/build-ui-for-ytdlp.yml` — тесты + PyInstaller на Windows.
+Полный релиз (exe + zip + Inno Setup installer): `.\scripts\build-windows.ps1` (нужен [Inno Setup 6](https://jrsoftware.org/isinfo.php)). Версия — файл `VERSION`.
+
+CI: `.github/workflows/build-ui-for-ytdlp.yml` — тесты + PyInstaller + Inno Setup на Windows.
 
 ## Правила для агента
 
