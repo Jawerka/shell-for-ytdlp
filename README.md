@@ -5,7 +5,7 @@
 
 **Modern GUI for yt-dlp built with customtkinter.**
 
-![Version](https://img.shields.io/badge/version-0.3.1-blue)
+![Version](https://img.shields.io/badge/version-0.3.2-blue)
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -225,6 +225,13 @@ pytest tests/ -v -m integration
 ---
 
 ## Changelog
+
+### v0.3.2 (2026-07-07)
+- Промежуточные файлы (`.part`, фрагменты HLS) в `{папка загрузки}/_UI-for-ytdlp-temp`; папка удаляется после успешной загрузки
+- SponsorBlock только для YouTube; GoodGame и другие сайты без лишней ffmpeg-обработки
+- Отмена (Esc) завершает yt-dlp и дочерний ffmpeg (`taskkill /T`)
+- В прогресс-баре отображаются фазы слияния ffmpeg
+- Release notes: [.github/release-notes/v0.3.2.md](.github/release-notes/v0.3.2.md)
 
 ### v0.3.1 (2026-07-06)
 - Windows-установщик **Inno Setup** (`UI-for-ytdlp-*-windows-x64-setup.exe`) в GitHub Releases

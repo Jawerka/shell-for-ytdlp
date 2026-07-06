@@ -64,9 +64,9 @@ class TestBuildCommand:
     """Тесты построения команды для yt-dlp."""
 
     @pytest.fixture
-    def downloader(self):
-        """Фикстура для создания downloader."""
-        config = Mock(spec=ConfigManager)
+    def build_downloader(self):
+        """Фикстура downloader с полной конфигурацией для _build_command."""
+        config = Mock()
         config.get.side_effect = lambda key, default=None: {
             'DOWNLOAD_PATH': '/test/path',
             'YTDLP_PATH': '/test/yt-dlp.exe',
@@ -74,49 +74,50 @@ class TestBuildCommand:
             'COOKIES_PATH': '',
             'SPONSORBLOCK_REMOVE_LIST': ['sponsor', 'selfpromo']
         }.get(key, default)
-        
+
         return YouTubeDownloader(config, Mock(), Mock())
 
-    def test_build_command_basic(self, downloader):
+    def test_build_command_basic(self, build_downloader):
         """Тест базовой команды."""
-        cmd = downloader._build_command('https://youtube.com/watch?v=test', '/output')
+        cmd = build_downloader._build_command('https://youtube.com/watch?v=test', '/output')
         
-        assert downloader.config.get('YTDLP_PATH') in cmd
-        assert '-P' in cmd
-        assert '/output' in cmd
+        assert build_downloader.config.get('YTDLP_PATH') in cmd
+        assert 'home:/output' in cmd
+        temp_args = [arg for arg in cmd if arg.startswith('temp:')]
+        assert len(temp_args) == 1
+        assert temp_args[0].endswith('_UI-for-ytdlp-temp')
         assert '--newline' in cmd  # Флаг для корректного вывода прогресса
         assert '-f' in cmd
         assert 'bestvideo+bestaudio/best' in cmd
 
-    def test_build_command_strips_url_params(self, downloader):
+    def test_build_command_strips_url_params(self, build_downloader):
         """Тест что URL очищается от параметров."""
         url_with_params = 'https://youtube.com/watch?v=test&list=PLtest&t=10s'
-        cmd = downloader._build_command(url_with_params, '/output')
+        cmd = build_downloader._build_command(url_with_params, '/output')
         
         # URL должен быть очищен
         assert 'https://youtube.com/watch?v=test' in cmd
         assert '&list=' not in cmd
         assert '&t=' not in cmd
 
-    def test_build_command_with_sponsorblock(self, downloader):
+    def test_build_command_with_sponsorblock(self, build_downloader):
         """Тест команды с SponsorBlock."""
-        cmd = downloader._build_command('https://youtube.com/watch?v=test', '/output')
-        
+        cmd = build_downloader._build_command('https://youtube.com/watch?v=test', '/output')
+
         assert '--sponsorblock-remove' in cmd
         assert 'sponsor,selfpromo' in cmd
 
-    def test_build_command_with_playlist(self, downloader):
+    def test_build_command_with_playlist(self, build_downloader):
         """Тест команды с плейлистом."""
         playlist_url = 'https://youtube.com/playlist?list=PLtest'
-        cmd = downloader._build_command(playlist_url, '/output')
+        cmd = build_downloader._build_command(playlist_url, '/output')
         
         assert '-o' in cmd
         assert '%(playlist)s/%(title)s [%(id)s].%(ext)s' in cmd
 
-    def test_build_command_with_cookies(self, downloader):
+    def test_build_command_with_cookies(self, build_downloader):
         """Тест команды с cookies.txt."""
-        # Настраиваем mock для возврата cookies path
-        downloader.config.get.side_effect = lambda key, default=None: {
+        build_downloader.config.get.side_effect = lambda key, default=None: {
             'DOWNLOAD_PATH': '/test/path',
             'YTDLP_PATH': '/test/yt-dlp.exe',
             'UTILITIES_PATH': '/test/utilities',
@@ -126,12 +127,12 @@ class TestBuildCommand:
         
         # Мокаем os.path.exists для cookies
         with patch('core.downloader.os.path.exists', return_value=True):
-            cmd = downloader._build_command('https://youtube.com/watch?v=test', '/output')
+            cmd = build_downloader._build_command('https://youtube.com/watch?v=test', '/output')
             
             assert '--cookies' in cmd
             assert '/test/cookies.txt' in cmd
 
-    def test_build_command_with_download_hints(self, downloader):
+    def test_build_command_with_download_hints(self, build_downloader):
         """Тест команды с подсказками от плагина GoodGame VOD."""
         hints = DownloadHints(
             url='https://storage3.goodgame.ru/hls_vod/test/index.m3u8',
@@ -140,7 +141,7 @@ class TestBuildCommand:
             merge_output_format='mp4',
             output_template='Test_Title_2026-06-27T18:52:42Z.%(ext)s',
         )
-        cmd = downloader._build_command(
+        cmd = build_downloader._build_command(
             'https://goodgame.ru/vods/6/2026-06-27T18:52:42Z',
             '/output',
             hints,
@@ -154,9 +155,12 @@ class TestBuildCommand:
         assert 'mp4' in cmd
         assert 'Test_Title_2026-06-27T18:52:42Z.%(ext)s' in cmd
         assert 'https://storage3.goodgame.ru/hls_vod/test/index.m3u8' in cmd
+        assert '--sponsorblock-remove' not in cmd
 
-
-class TestParseProgress:
+    def test_build_command_without_sponsorblock_for_vk(self, build_downloader):
+        """SponsorBlock не добавляется для не-YouTube URL."""
+        cmd = build_downloader._build_command('https://vk.com/video-1_2', '/output')
+        assert '--sponsorblock-remove' not in cmd
     """Тесты парсинга прогресса."""
 
     @pytest.fixture
@@ -233,6 +237,35 @@ class TestParseProgress:
         
         assert result is not None
         assert '796.49 KiB/s' in result[2]
+
+
+class TestParsePhaseStatus:
+    """Тесты парсинга фаз ffmpeg post-processing."""
+
+    @pytest.fixture
+    def downloader(self):
+        config = Mock(spec=ConfigManager)
+        config.get.side_effect = lambda key, default=None: {
+            'DOWNLOAD_PATH': '/test/path',
+            'YTDLP_PATH': '/test/yt-dlp.exe',
+        }.get(key, default)
+        return YouTubeDownloader(config, Mock(), Mock())
+
+    def test_parse_phase_status_merger(self, downloader):
+        line = '[Merger] Merging formats into "video.mp4"'
+        assert downloader._parse_phase_status(line) == 'Слияние потоков (ffmpeg)...'
+
+    def test_parse_phase_status_ffmpeg(self, downloader):
+        line = '[ffmpeg] Something'
+        assert downloader._parse_phase_status(line) == 'Обработка ffmpeg...'
+
+    def test_parse_phase_status_ffmpeg_deleting_ignored(self, downloader):
+        line = '[ffmpeg] Deleting original file'
+        assert downloader._parse_phase_status(line) is None
+
+    def test_parse_phase_status_sponsorblock(self, downloader):
+        line = '[SponsorBlock] Removing sponsor segments'
+        assert downloader._parse_phase_status(line) == 'SponsorBlock (ffmpeg)...'
 
 
 class TestLogBuffer:
@@ -349,21 +382,35 @@ class TestErrorHandling:
         assert downloader._cancelled is True
 
     def test_cancel_kills_process(self, downloader):
-        """Тест что cancel убивает процесс."""
+        """Тест что cancel убивает дерево процессов."""
         mock_process = Mock()
+        mock_process.pid = 4242
         downloader._process = mock_process
-        
-        downloader.cancel()
-        
-        mock_process.kill.assert_called_once()
+
+        with patch('core.downloader.os.name', 'nt'):
+            with patch('core.downloader.subprocess.run') as mock_run:
+                downloader.cancel()
+                mock_run.assert_called_once()
+                args = mock_run.call_args[0][0]
+                assert args == ['taskkill', '/PID', '4242', '/T', '/F']
+
+    def test_cancel_kills_process_posix(self, downloader):
+        """На POSIX cancel вызывает process.kill()."""
+        mock_process = Mock()
+        mock_process.pid = 4242
+        downloader._process = mock_process
+
+        with patch('core.downloader.os.name', 'posix'):
+            downloader.cancel()
+            mock_process.kill.assert_called_once()
 
     def test_cancel_handles_exception(self, downloader):
         """Тест что cancel обрабатывает исключения."""
         mock_process = Mock()
-        mock_process.kill.side_effect = Exception("Test exception")
+        mock_process.pid = 4242
         downloader._process = mock_process
-        
-        # Не должно выбрасывать исключение
-        downloader.cancel()
-        
+
+        with patch('core.downloader._terminate_process_tree', side_effect=Exception("Test exception")):
+            downloader.cancel()
+
         assert downloader._cancelled is True

@@ -2,7 +2,7 @@
 ; CI/local: scripts/package-windows-installer.ps1
 
 #ifndef MyAppVersion
-  #define MyAppVersion "0.3.1"
+  #define MyAppVersion "0.3.2"
 #endif
 #ifndef ReleaseDir
   #define ReleaseDir "..\..\dist"

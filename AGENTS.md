@@ -109,6 +109,10 @@ CI: `.github/workflows/build-ui-for-ytdlp.yml` — тесты + PyInstaller + In
 
 - `quote_path()` + `Popen(cmd, shell=False)` — кавычки попадают в аргумент буквально, ломая пути с пробелами.
 - `_update_and_download` без `finally` — UI остаётся заблокированным при исключении.
+- **ffmpeg блокирует .mp4** во время merge (HLS → mp4); файл нельзя открыть/переместить до завершения yt-dlp.
+- **Отмена (Esc)** — `taskkill /T` убивает yt-dlp и дочерний ffmpeg; без `/T` ffmpeg мог остаться и держать lock.
+- **SponsorBlock** (`--sponsorblock-remove`) только для YouTube URL; GoodGame/VK и др. — без этой опции.
+- **Временные файлы** (`.part`, фрагменты HLS) — в `{DOWNLOAD_PATH}/_UI-for-ytdlp-temp` (`-P temp:`); папка удаляется после успешной загрузки; при отмене/ошибке остаётся для `--continue`.
 - `NotificationManager()` создавал свой `ConfigManager` — передавать config явно при DI.
 - `DEBUG`-print в `main.py` — только при `UI_FOR_YTDLP_DEBUG=1`.
 - Backup конфига: `utilities/config.bkp` (не `config.json.bkp`).

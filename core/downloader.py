@@ -14,11 +14,33 @@ from typing import Callable, Optional, Tuple, List
 
 from .config import ConfigManager
 from .download_handlers import DownloadHints, HandlerError, resolve_download_hints
-from .pipeline import ensure_download_directory
-from .utils import find_cookies_txt, normalize_path_for_display
+from .pipeline import (
+    ensure_download_directory,
+    ensure_download_temp_directory,
+    cleanup_download_temp_directory,
+    get_download_temp_dir,
+)
+from .utils import find_cookies_txt, is_youtube_url, normalize_path_for_display
 
 # Логгер для отладки
 logger = logging.getLogger('UI-for-ytdlp.downloader')
+
+
+def _terminate_process_tree(process: Optional[subprocess.Popen]) -> None:
+    """Завершить yt-dlp и дочерние процессы (в т.ч. ffmpeg)."""
+    if process is None:
+        return
+    try:
+        if os.name == 'nt':
+            subprocess.run(
+                ['taskkill', '/PID', str(process.pid), '/T', '/F'],
+                check=False,
+                creationflags=subprocess.CREATE_NO_WINDOW,
+            )
+        else:
+            process.kill()
+    except Exception as e:
+        logger.error(f"_terminate_process_tree: {e}")
 
 
 class YouTubeDownloader:
@@ -111,9 +133,12 @@ class YouTubeDownloader:
         logger.debug(f"_build_command: utilities_path = {utilities_path}")
         logger.debug(f"_build_command: ytdlp_path = {ytdlp_path}")
 
+        temp_path = get_download_temp_dir(download_path)
+
         cmd = [
             ytdlp_path,
-            '-P', download_path,
+            '-P', f'home:{download_path}',
+            '-P', f'temp:{temp_path}',
             *self._get_base_ytdlp_options(hints),
             # Путь к ffmpeg передаётся как путь к директории (согласно документации yt-dlp)
             '--ffmpeg-location', utilities_path,
@@ -140,13 +165,15 @@ class YouTubeDownloader:
             else:
                 logger.debug("_build_command: cookies.txt не найден")
 
-        # SponsorBlock
+        # SponsorBlock — только для YouTube (на других сайтах сегментов нет)
         sponsorblock_list = self.config.get('SPONSORBLOCK_REMOVE_LIST', [])
-        if sponsorblock_list:
+        if sponsorblock_list and is_youtube_url(url):
             categories = ','.join(sponsorblock_list)
             logger.debug(f"_build_command: SponsorBlock категории = {sponsorblock_list}")
             cmd.append('--sponsorblock-remove')
             cmd.append(categories)
+        elif sponsorblock_list:
+            logger.debug("_build_command: SponsorBlock пропущен (не YouTube URL)")
         else:
             logger.debug("_build_command: SponsorBlock отключен")
 
@@ -233,6 +260,19 @@ class YouTubeDownloader:
 
         logger.debug(f"_parse_progress: line={line[:80]}... percent={percent} size={size_info} speed={speed} eta={eta}")
         return (percent, size_info, speed, eta)
+
+    def _parse_phase_status(self, line: str) -> Optional[str]:
+        """Распарсить фазу post-processing (ffmpeg merge и др.) из вывода yt-dlp."""
+        if not line or not isinstance(line, str):
+            return None
+
+        if '[Merger]' in line:
+            return 'Слияние потоков (ffmpeg)...'
+        if '[SponsorBlock]' in line:
+            return 'SponsorBlock (ffmpeg)...'
+        if '[ffmpeg]' in line and 'Deleting' not in line:
+            return 'Обработка ffmpeg...'
+        return None
     
     def download(self, url: str) -> bool:
         """
@@ -263,6 +303,12 @@ class YouTubeDownloader:
             return False
 
         ok, message = ensure_download_directory(download_path)
+        if not ok:
+            logger.error(f"download: {message}")
+            self._log(message, 'error')
+            return False
+
+        ok, message = ensure_download_temp_directory(download_path)
         if not ok:
             logger.error(f"download: {message}")
             self._log(message, 'error')
@@ -308,10 +354,11 @@ class YouTubeDownloader:
 
             if self._process.stdout:
                 line_count = 0
+                last_percent = 0.0
                 for line in self._process.stdout:
                     if self._cancelled:
                         logger.warning("download: Отмена пользователем")
-                        self._process.kill()
+                        _terminate_process_tree(self._process)
                         self._log("Загрузка отменена пользователем", 'warning')
                         return False
 
@@ -338,8 +385,10 @@ class YouTubeDownloader:
                         logger.debug(f"download: Строка {line_count}: {line_str[:50]}...")
 
                     progress = self._parse_progress(line_str)
+                    phase = self._parse_phase_status(line_str)
                     if progress:
                         percent, info, speed, eta = progress
+                        last_percent = percent
                         # Формируем полную информацию для отображения
                         progress_info = info
                         if speed or eta:
@@ -350,6 +399,9 @@ class YouTubeDownloader:
                                 parts.append(f" | {eta}")
                             progress_info = "".join(parts)
                         self._progress(percent, progress_info)
+                    elif phase:
+                        self._progress(last_percent, phase)
+                        self._log(line_str)
                     else:
                         # Логируем все сообщения от yt-dlp
                         # Текст уже в UTF-8, дополнительная конвертация не нужна
@@ -362,6 +414,7 @@ class YouTubeDownloader:
 
             if return_code == 0:
                 logger.debug("download: Загрузка успешна")
+                cleanup_download_temp_directory(download_path)
                 self._log("Загрузка завершена успешно", 'success')
                 self._progress(100.0, "Завершено")
                 return True
@@ -386,7 +439,7 @@ class YouTubeDownloader:
             logger.warning("download: Прервано пользователем (KeyboardInterrupt)")
             self._log("Прервано пользователем", 'warning')
             if self._process:
-                self._process.kill()
+                _terminate_process_tree(self._process)
             return False
         except Exception as e:
             logger.error(f"download: Исключение: {e}", exc_info=True)
@@ -402,9 +455,8 @@ class YouTubeDownloader:
         self._cancelled = True
         if self._process:
             try:
-                # Используем kill() вместо terminate() для гарантированной остановки
-                self._process.kill()
-                logger.debug(f"cancel: Процесс {self._process.pid} завершён принудительно")
+                _terminate_process_tree(self._process)
+                logger.debug(f"cancel: Дерево процессов {self._process.pid} завершено принудительно")
             except Exception as e:
                 logger.error(f"cancel: Ошибка при завершении процесса: {e}")
             finally:

@@ -308,6 +308,24 @@ class TestFindCookiesTxt:
                     assert 'subdir' in result
 
 
+class TestIsYoutubeUrl:
+    def test_youtube_watch(self):
+        from core.utils import is_youtube_url
+        assert is_youtube_url('https://www.youtube.com/watch?v=abc') is True
+
+    def test_youtu_be(self):
+        from core.utils import is_youtube_url
+        assert is_youtube_url('https://youtu.be/abc123') is True
+
+    def test_goodgame_not_youtube(self):
+        from core.utils import is_youtube_url
+        assert is_youtube_url('https://goodgame.ru/vods/6/2026-06-27T18:52:42Z') is False
+
+    def test_vk_not_youtube(self):
+        from core.utils import is_youtube_url
+        assert is_youtube_url('https://vk.com/video-1_2') is False
+
+
 class TestIsSupportedVideoUrl:
     def test_youtube_url(self):
         from core.utils import is_supported_video_url

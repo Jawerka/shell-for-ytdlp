@@ -873,7 +873,8 @@ class MainWindow(ctk.CTk):
             self.after(0, lambda: getattr(self.log_viewer, level)(message))
 
         def progress_callback(percent: float, info: str):
-            self.after(0, lambda: self.progress_bar.update_progress(percent, info=info))
+            label = info if info else f"{percent:.1f}%"
+            self.after(0, lambda p=percent, t=label: self.progress_bar.update_progress(p, text=t))
 
         self.downloader = YouTubeDownloader(self.config_manager, log_callback, progress_callback)
         return self.downloader.download(url)

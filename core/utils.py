@@ -122,6 +122,34 @@ SUPPORTED_VIDEO_DOMAINS = [
     'www.bandcamp.com',
 ]
 
+YOUTUBE_DOMAINS = (
+    'youtube.com',
+    'youtu.be',
+    'www.youtube.com',
+    'music.youtube.com',
+    'gaming.youtube.com',
+)
+
+
+def is_youtube_url(url: str) -> bool:
+    """Проверить, что URL относится к YouTube (для SponsorBlock и др.)."""
+    if not url or not isinstance(url, str):
+        return False
+
+    url = url.strip().lower()
+    if not (url.startswith('http://') or url.startswith('https://')):
+        return False
+
+    try:
+        domain = url.split('://', 1)[1].split('/')[0].lower()
+    except (IndexError, ValueError):
+        return False
+
+    return any(
+        domain == youtube_domain or domain.endswith('.' + youtube_domain)
+        for youtube_domain in YOUTUBE_DOMAINS
+    )
+
 
 def is_supported_video_url(url: str, config: Any = None) -> bool:
     """

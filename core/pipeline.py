@@ -8,7 +8,9 @@ validate URL → utilities → yt-dlp download.
 
 from __future__ import annotations
 
+import logging
 import os
+import shutil
 import socket
 from enum import Enum
 from typing import Any, Optional, Tuple
@@ -16,6 +18,11 @@ from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
 
 from .utils import DEFAULT_TIMEOUT, is_supported_video_url
+
+logger = logging.getLogger('UI-for-ytdlp.pipeline')
+
+# Папка для .part и прочих промежуточных файлов yt-dlp (рядом с DOWNLOAD_PATH).
+DOWNLOAD_TEMP_DIR_NAME = '_UI-for-ytdlp-temp'
 
 # Результат валидации URL: (ok, url_or_message, warning_message_or_empty)
 ValidationResult = Tuple[bool, str, str]
@@ -84,6 +91,32 @@ def ensure_download_directory(path: str) -> Tuple[bool, str]:
         return False, f'Нет доступа для создания папки: {path}'
     except OSError as e:
         return False, f'Не удалось создать папку загрузки: {e}'
+
+
+def get_download_temp_dir(download_path: str) -> str:
+    """Путь к папке временных файлов загрузки рядом с каталогом сохранения."""
+    return os.path.join(os.path.abspath(download_path.strip()), DOWNLOAD_TEMP_DIR_NAME)
+
+
+def ensure_download_temp_directory(download_path: str) -> Tuple[bool, str]:
+    """Создать папку для .part и фрагментов HLS, если её ещё нет."""
+    return ensure_download_directory(get_download_temp_dir(download_path))
+
+
+def cleanup_download_temp_directory(download_path: str) -> None:
+    """
+    Удалить папку временных файлов после успешной сборки видео.
+
+    При ошибке или отмене папку не трогаем — там остаются .part для --continue.
+    """
+    temp_dir = get_download_temp_dir(download_path)
+    if not os.path.isdir(temp_dir):
+        return
+    try:
+        shutil.rmtree(temp_dir)
+        logger.debug("cleanup_download_temp_directory: удалена %s", temp_dir)
+    except OSError as e:
+        logger.warning("cleanup_download_temp_directory: не удалось удалить %s: %s", temp_dir, e)
 
 
 def check_ytdlp_ready(config: Any) -> Tuple[bool, str]:

@@ -13,9 +13,13 @@ if project_root not in sys.path:
 
 from core.pipeline import (
     UtilitySeverity,
+    DOWNLOAD_TEMP_DIR_NAME,
     check_ytdlp_ready,
     classify_utility_update_result,
+    cleanup_download_temp_directory,
     ensure_download_directory,
+    ensure_download_temp_directory,
+    get_download_temp_dir,
     get_ytdlp_download_url,
     validate_url_for_download,
 )
@@ -77,6 +81,36 @@ class TestEnsureDownloadDirectory:
         ok, message = ensure_download_directory('/fake/path')
         assert ok is False
         assert 'доступ' in message.lower()
+
+
+class TestDownloadTempDirectory:
+    def test_get_download_temp_dir(self, tmp_path):
+        download_dir = tmp_path / 'videos'
+        download_dir.mkdir()
+        temp_dir = get_download_temp_dir(str(download_dir))
+        assert temp_dir.endswith(DOWNLOAD_TEMP_DIR_NAME)
+        assert os.path.basename(temp_dir) == '_UI-for-ytdlp-temp'
+        assert os.path.dirname(temp_dir) == str(download_dir.resolve())
+
+    def test_ensure_download_temp_directory(self, tmp_path):
+        download_dir = tmp_path / 'videos'
+        ok, message = ensure_download_temp_directory(str(download_dir))
+        assert ok is True
+        assert message == ''
+        assert (download_dir / DOWNLOAD_TEMP_DIR_NAME).is_dir()
+
+    def test_cleanup_removes_temp_directory(self, tmp_path):
+        download_dir = tmp_path / 'videos'
+        temp_dir = download_dir / DOWNLOAD_TEMP_DIR_NAME
+        temp_dir.mkdir(parents=True)
+        (temp_dir / 'fragment.mp4.part').write_bytes(b'x')
+
+        cleanup_download_temp_directory(str(download_dir))
+
+        assert not temp_dir.exists()
+
+    def test_cleanup_missing_directory_is_noop(self, tmp_path):
+        cleanup_download_temp_directory(str(tmp_path / 'missing'))
 
 
 class TestCheckYtdlpReady:

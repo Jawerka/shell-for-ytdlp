@@ -37,7 +37,10 @@ class TestBuildCommandPaths:
 
         cmd = downloader._build_command('https://youtube.com/watch?v=test', download_path)
 
-        assert download_path in cmd
+        assert f'home:{download_path}' in cmd
+        assert f'temp:{download_path}\\_UI-for-ytdlp-temp' in cmd or (
+            f'temp:{download_path}/_UI-for-ytdlp-temp' in cmd
+        )
         assert f'"{download_path}"' not in cmd
         assert str(tmp_path) in cmd
 
@@ -58,10 +61,36 @@ class TestDownloadSubprocess:
         mock_process.wait.return_value = 0
 
         with patch('core.downloader.subprocess.Popen', return_value=mock_process):
+            with patch('core.downloader.cleanup_download_temp_directory') as mock_cleanup:
+                result = downloader.download('https://youtube.com/watch?v=test')
+
+        assert result is True
+        mock_cleanup.assert_called_once_with(str(tmp_path))
+        progress_callback.assert_called()
+
+    def test_merge_phase_updates_progress(self, tmp_path):
+        (tmp_path / 'yt-dlp.exe').write_bytes(b'')
+        downloader, _, progress_callback = _make_downloader(tmp_path)
+
+        lines = [
+            b'[download] 100% of  100.00MiB\n',
+            b'[Merger] Merging formats into "video.mp4"\n',
+        ]
+
+        mock_process = MagicMock()
+        mock_process.pid = 1234
+        mock_process.stdout = iter(lines)
+        mock_process.wait.return_value = 0
+
+        with patch('core.downloader.subprocess.Popen', return_value=mock_process):
             result = downloader.download('https://youtube.com/watch?v=test')
 
         assert result is True
-        progress_callback.assert_called()
+        phase_calls = [
+            c for c in progress_callback.call_args_list
+            if c[0][1] == 'Слияние потоков (ffmpeg)...'
+        ]
+        assert phase_calls
 
     def test_failure_return_code(self, tmp_path):
         (tmp_path / 'yt-dlp.exe').write_bytes(b'')
@@ -103,10 +132,11 @@ class TestDownloadSubprocess:
         mock_process.wait.return_value = -9
 
         with patch('core.downloader.subprocess.Popen', return_value=mock_process):
-            result = downloader.download('https://youtube.com/watch?v=test')
+            with patch('core.downloader._terminate_process_tree') as mock_terminate:
+                result = downloader.download('https://youtube.com/watch?v=test')
 
         assert result is False
-        mock_process.kill.assert_called()
+        mock_terminate.assert_called_once_with(mock_process)
 
     def test_utf8_decoding(self, tmp_path):
         (tmp_path / 'yt-dlp.exe').write_bytes(b'')
