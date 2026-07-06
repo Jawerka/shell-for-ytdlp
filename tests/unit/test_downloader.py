@@ -21,6 +21,7 @@ if project_root not in sys.path:
 
 from core.downloader import YouTubeDownloader
 from core.config import ConfigManager
+from core.download_handlers import DownloadHints
 
 
 class TestYouTubeDownloaderInit:
@@ -129,6 +130,30 @@ class TestBuildCommand:
             
             assert '--cookies' in cmd
             assert '/test/cookies.txt' in cmd
+
+    def test_build_command_with_download_hints(self, downloader):
+        """Тест команды с подсказками от плагина GoodGame VOD."""
+        hints = DownloadHints(
+            url='https://storage3.goodgame.ru/hls_vod/test/index.m3u8',
+            format_selector='0',
+            referer='https://goodgame.ru/',
+            merge_output_format='mp4',
+            output_template='Test_Title_2026-06-27T18:52:42Z.%(ext)s',
+        )
+        cmd = downloader._build_command(
+            'https://goodgame.ru/vods/6/2026-06-27T18:52:42Z',
+            '/output',
+            hints,
+        )
+
+        assert '0' in cmd
+        assert 'bestvideo+bestaudio/best' not in cmd
+        assert '--referer' in cmd
+        assert 'https://goodgame.ru/' in cmd
+        assert '--merge-output-format' in cmd
+        assert 'mp4' in cmd
+        assert 'Test_Title_2026-06-27T18:52:42Z.%(ext)s' in cmd
+        assert 'https://storage3.goodgame.ru/hls_vod/test/index.m3u8' in cmd
 
 
 class TestParseProgress:

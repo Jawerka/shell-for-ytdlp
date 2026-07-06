@@ -94,6 +94,8 @@ DEFAULT_CONFIG = {
     'SETTINGS_WINDOW_HEIGHT': 700,
     # Последний загруженный URL (для предотвращения повторной загрузки)
     'LAST_DOWNLOADED_URL': '',
+    # Плагин резолвинга VOD GoodGame.ru (API → m3u8 → yt-dlp)
+    'ENABLE_GOODGAME_VOD_HANDLER': True,
 }
 
 
@@ -178,6 +180,8 @@ class ConfigManager:
             result['ENABLE_NOTIFICATIONS'] = True
         if 'ENABLE_SOUND_NOTIFICATIONS' not in result:
             result['ENABLE_SOUND_NOTIFICATIONS'] = True
+        if 'ENABLE_GOODGAME_VOD_HANDLER' not in result:
+            result['ENABLE_GOODGAME_VOD_HANDLER'] = True
 
         return result
     

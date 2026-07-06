@@ -325,6 +325,31 @@ class TestIsSupportedVideoUrl:
         from core.utils import is_supported_video_url
         assert is_supported_video_url('youtube.com/watch?v=abc') is False
 
+    def test_goodgame_vod_without_config(self):
+        from core.utils import is_supported_video_url
+        url = 'https://goodgame.ru/vods/6/2026-06-27T18:52:42Z'
+        assert is_supported_video_url(url) is True
+
+    def test_goodgame_domain_with_config_enabled(self):
+        from core.utils import is_supported_video_url
+        from unittest.mock import Mock
+
+        config = Mock()
+        config.get.return_value = True
+        url = 'https://goodgame.ru/channel/123'
+        assert is_supported_video_url(url, config) is True
+
+    def test_goodgame_domain_with_config_disabled(self):
+        from core.utils import is_supported_video_url
+        from unittest.mock import Mock
+
+        config = Mock()
+        config.get.side_effect = lambda key, default=None: {
+            'ENABLE_GOODGAME_VOD_HANDLER': False,
+        }.get(key, default)
+        url = 'https://goodgame.ru/channel/123'
+        assert is_supported_video_url(url, config) is False
+
 
 class TestNormalizePathForDisplay:
     def test_forward_slashes_to_backslashes(self):

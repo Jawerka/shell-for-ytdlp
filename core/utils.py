@@ -12,7 +12,7 @@
 import os
 import re
 import socket
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
 import pyperclip
@@ -123,11 +123,13 @@ SUPPORTED_VIDEO_DOMAINS = [
 ]
 
 
-def is_supported_video_url(url: str) -> bool:
+def is_supported_video_url(url: str, config: Any = None) -> bool:
     """
     Проверить, является ли URL ссылкой на поддерживаемый видеосервис.
 
     Выполняет быструю проверку домена без сетевого запроса.
+    При config — учитывает домены включённых плагинов.
+    Без config — распознаёт URL по паттернам плагинов (буфер обмена).
     """
     if not url or not isinstance(url, str):
         return False
@@ -147,7 +149,16 @@ def is_supported_video_url(url: str) -> bool:
         if not domain:
             return False
 
-        for supported_domain in SUPPORTED_VIDEO_DOMAINS:
+        domains = list(SUPPORTED_VIDEO_DOMAINS)
+        if config is not None:
+            from .download_handlers import get_plugin_domains
+            domains.extend(get_plugin_domains(config))
+        else:
+            from .download_handlers import can_handle_by_plugins
+            if can_handle_by_plugins(url):
+                return True
+
+        for supported_domain in domains:
             if domain == supported_domain or domain.endswith('.' + supported_domain):
                 return True
 

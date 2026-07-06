@@ -5,7 +5,7 @@
 
 **Modern GUI for yt-dlp built with customtkinter.**
 
-![Version](https://img.shields.io/badge/version-0.2.0-blue)
+![Version](https://img.shields.io/badge/version-0.3.0-blue)
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -216,6 +216,12 @@ pytest tests/ -v -m integration
 ---
 
 ## Changelog
+
+### v0.3.0 (2026-07-06)
+- Подключаемый плагин **GoodGame.ru VOD** (`/vods/...` → API → m3u8 → yt-dlp); отключение через `ENABLE_GOODGAME_VOD_HANDLER` в `config.json`
+- Усилено обновление ffmpeg (проверка zip, повторная загрузка битого архива)
+- Исправлены замыкания в lambda-колбэках прогресса обновления утилит
+- Release notes: [.github/release-notes/v0.3.0.md](.github/release-notes/v0.3.0.md)
 
 ### v0.2.0 (2026-06-29)
 - Первый релиз **UI-for-ytdlp** на ветке `main` — преемник **shell-for-ytdlp** (v0.1.7)

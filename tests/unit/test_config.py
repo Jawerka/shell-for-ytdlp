@@ -175,6 +175,20 @@ class TestConfigManagerMergeWithDefaults:
                 assert 'utilities' in result['UTILITIES_PATH']
                 assert 'yt-dlp.exe' in result['YTDLP_PATH']
 
+    def test_merge_adds_goodgame_handler_flag(self):
+        """Проверка добавления ENABLE_GOODGAME_VOD_HANDLER для старых config."""
+        config = ConfigManager.__new__(ConfigManager)
+        result = config._merge_with_defaults({})
+
+        assert result['ENABLE_GOODGAME_VOD_HANDLER'] is True
+
+    def test_merge_preserves_goodgame_handler_disabled(self):
+        """Проверка сохранения отключённого плагина GoodGame."""
+        config = ConfigManager.__new__(ConfigManager)
+        result = config._merge_with_defaults({'ENABLE_GOODGAME_VOD_HANDLER': False})
+
+        assert result['ENABLE_GOODGAME_VOD_HANDLER'] is False
+
 
 class TestConfigManagerSave:
     """Тесты сохранения конфигурации."""

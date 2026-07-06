@@ -13,6 +13,7 @@ import logging
 from typing import Callable, Optional, Tuple, List
 
 from .config import ConfigManager
+from .download_handlers import DownloadHints, HandlerError, resolve_download_hints
 from .pipeline import ensure_download_directory
 from .utils import find_cookies_txt, normalize_path_for_display
 
@@ -72,18 +73,36 @@ class YouTubeDownloader:
         if self.progress_callback:
             self.progress_callback(percent, info)
 
-    def _build_command(self, url: str, download_path: str) -> List[str]:
+    def _get_base_ytdlp_options(self, hints: Optional[DownloadHints] = None) -> List[str]:
+        """Базовые опции yt-dlp с учётом подсказок обработчика."""
+        options = list(self.YTDLP_OPTIONS)
+        if hints and hints.format_selector:
+            try:
+                format_index = options.index('-f')
+                options[format_index + 1] = hints.format_selector
+            except ValueError:
+                options.extend(['-f', hints.format_selector])
+        return options
+
+    def _build_command(
+        self,
+        url: str,
+        download_path: str,
+        hints: Optional[DownloadHints] = None,
+    ) -> List[str]:
         """
         Построить команду для yt-dlp.
 
         Args:
             url: URL для загрузки
             download_path: Путь для сохранения
+            hints: Параметры от подключаемого обработчика URL
 
         Returns:
             Список аргументов команды
         """
-        logger.debug(f"_build_command: URL = {url[:50]}...")
+        effective_url = hints.url if hints else url
+        logger.debug(f"_build_command: URL = {effective_url[:50]}...")
         logger.debug(f"_build_command: download_path = {download_path}")
 
         utilities_path = self.config.get('UTILITIES_PATH', '')
@@ -92,12 +111,10 @@ class YouTubeDownloader:
         logger.debug(f"_build_command: utilities_path = {utilities_path}")
         logger.debug(f"_build_command: ytdlp_path = {ytdlp_path}")
 
-        # Всегда используем лучшее качество видео и аудио
-        # Пути передаём как есть: subprocess.Popen(..., shell=False) сам экранирует аргументы
         cmd = [
             ytdlp_path,
             '-P', download_path,
-            *self.YTDLP_OPTIONS,
+            *self._get_base_ytdlp_options(hints),
             # Путь к ffmpeg передаётся как путь к директории (согласно документации yt-dlp)
             '--ffmpeg-location', utilities_path,
         ]
@@ -133,14 +150,21 @@ class YouTubeDownloader:
         else:
             logger.debug("_build_command: SponsorBlock отключен")
 
-        # Формат вывода для плейлистов
-        if 'playlist' in url:
+        if hints and hints.referer:
+            cmd.extend(['--referer', hints.referer])
+
+        if hints and hints.merge_output_format:
+            cmd.extend(['--merge-output-format', hints.merge_output_format])
+
+        if hints and hints.output_template:
+            cmd.extend(['-o', hints.output_template])
+        elif 'playlist' in effective_url:
             logger.debug("_build_command: Обнаружен плейлист, специальный формат вывода")
             cmd.append('-o')
             cmd.append('%(playlist)s/%(title)s [%(id)s].%(ext)s')
 
         # Очистка URL от параметров
-        clean_url = url.split('&')[0]
+        clean_url = effective_url.split('&')[0]
         logger.debug(f"_build_command: clean_url = {clean_url}")
         cmd.append(clean_url)
 
@@ -249,7 +273,16 @@ class YouTubeDownloader:
             self._log("yt-dlp не найден. Запустите обновление утилит.", 'error')
             return False
 
-        cmd = self._build_command(url, download_path)
+        try:
+            hints = resolve_download_hints(url, self.config)
+        except HandlerError as e:
+            self._log(str(e), 'error')
+            return False
+
+        if hints.log_title:
+            self._log(f"Плагин: {hints.log_title}")
+
+        cmd = self._build_command(url, download_path, hints)
 
         logger.debug(f"download: Команда: {cmd}")
 
