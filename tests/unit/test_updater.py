@@ -24,7 +24,9 @@ from core.updater import (
     unzipping_ffmpeg,
     check_needs_update,
     update_utilities,
-    update_loop
+    update_loop,
+    _parse_content_length,
+    ffmpeg_extracted,
 )
 
 
@@ -56,6 +58,7 @@ class TestUnzippingFFmpeg:
         with patch('core.updater.ZipFile') as mock_zip:
             mock_zip.return_value.__enter__ = Mock()
             mock_zip.return_value.__exit__ = Mock()
+            mock_zip.return_value.__enter__.return_value.testzip = Mock(return_value=None)
             
             # Мокаем extractall
             mock_zip.return_value.__enter__.return_value.extractall = Mock()
@@ -69,7 +72,8 @@ class TestUnzippingFFmpeg:
 
     def test_unzipping_ffmpeg_removes_old_files(self, temp_dirs):
         """Тест что старые файлы удаляются перед распаковкой."""
-        with patch('core.updater.ZipFile'):
+        with patch('core.updater.ZipFile') as mock_zip:
+            mock_zip.return_value.__enter__.return_value.testzip = Mock(return_value=None)
             with patch('core.updater.os.path.exists', return_value=True):
                 with patch('core.updater.os.remove') as mock_remove:
                     with patch('core.updater.shutil.move'):
@@ -132,6 +136,43 @@ class TestCheckNeedsUpdate:
                     check_needs_update('http://test.com/yt-dlp.exe', '/test/path/yt-dlp.exe')
 
 
+    def test_check_needs_update_missing_content_length(self):
+        """Тест что отсутствие Content-Length не вызывает исключение."""
+        mock_response = Mock()
+        mock_response.getheader.return_value = None
+
+        with patch('core.updater.urlopen', return_value=mock_response):
+            with patch('core.updater.os.path.exists', return_value=True):
+                with patch('core.updater.os.path.getsize', return_value=1000):
+                    result = check_needs_update('http://test.com/file.exe', '/test/path/file.exe')
+                    assert result is False
+
+    def test_parse_content_length_none(self):
+        """Тест безопасного парсинга отсутствующего Content-Length."""
+        mock_response = Mock()
+        mock_response.getheader.return_value = None
+        assert _parse_content_length(mock_response) is None
+
+    def test_parse_content_length_valid(self):
+        """Тест парсинга валидного Content-Length."""
+        mock_response = Mock()
+        mock_response.getheader.return_value = ' 12345 '
+        assert _parse_content_length(mock_response) == 12345
+
+
+class TestFFmpegExtracted:
+    """Тесты проверки распакованного ffmpeg."""
+
+    def test_ffmpeg_extracted_all_present(self, tmp_path):
+        for name in ('ffmpeg.exe', 'ffplay.exe', 'ffprobe.exe'):
+            (tmp_path / name).write_bytes(b'x')
+        assert ffmpeg_extracted(str(tmp_path)) is True
+
+    def test_ffmpeg_extracted_missing_one(self, tmp_path):
+        (tmp_path / 'ffmpeg.exe').write_bytes(b'x')
+        assert ffmpeg_extracted(str(tmp_path)) is False
+
+
 class TestUpdateUtilities:
     """Тесты обновления утилит."""
 
@@ -178,14 +219,14 @@ class TestUpdateUtilities:
                 assert result is False
 
     def test_update_utilities_ffmpeg_not_extracted(self, temp_dir):
-        """Тест что ffmpeg распаковывается если файлы отсутствуют."""
+        """Тест что ffmpeg распаковывается если файлы отсутствуют (нет zip)."""
         mock_response = Mock()
         mock_response.getheader.return_value = '1000'
 
         with patch('core.updater.urlopen', return_value=mock_response):
             with patch('core.updater.os.path.exists', return_value=False):
                 with patch('core.updater.urlretrieve'):
-                    with patch('core.updater.unzipping_ffmpeg') as mock_unzip:
+                    with patch('core.updater._try_unzip_ffmpeg', return_value=True) as mock_unzip:
                         result = update_utilities(
                             'http://test.com/ffmpeg-master.zip',
                             temp_dir
@@ -193,6 +234,70 @@ class TestUpdateUtilities:
 
                         mock_unzip.assert_called_once()
                         assert result is True
+
+    def test_update_utilities_ffmpeg_zip_exists_not_extracted(self, temp_dir):
+        """Тест: zip есть, exe нет — распаковка без повторной загрузки."""
+        mock_response = Mock()
+        mock_response.getheader.return_value = '1000'
+        zip_path = os.path.join(temp_dir, 'ffmpeg-master.zip')
+
+        def mock_exists(path):
+            if path == zip_path:
+                return True
+            if path.endswith(('.exe',)):
+                return False
+            return False
+
+        with patch('core.updater.urlopen', return_value=mock_response):
+            with patch('core.updater.os.path.exists', side_effect=mock_exists):
+                with patch('core.updater.os.path.getsize', return_value=1000):
+                    with patch('core.updater.urlretrieve') as mock_retrieve:
+                        with patch('core.updater._try_unzip_ffmpeg', return_value=True) as mock_unzip:
+                            result = update_utilities(
+                                'http://test.com/ffmpeg-master.zip',
+                                temp_dir
+                            )
+
+                            mock_unzip.assert_called_once_with(zip_path, temp_dir)
+                            mock_retrieve.assert_not_called()
+                            assert result is True
+
+    def test_update_utilities_corrupt_ffmpeg_zip_redownloads(self, temp_dir):
+        """Тест: битый zip без exe — удаление и повторная загрузка."""
+        mock_response = Mock()
+        mock_response.getheader.return_value = '1000'
+        zip_path = os.path.join(temp_dir, 'ffmpeg-master.zip')
+        (open(zip_path, 'wb').close())
+
+        def mock_exists(path):
+            if path == zip_path:
+                return True
+            return False
+
+        with patch('core.updater.urlopen', return_value=mock_response):
+            with patch('core.updater.os.path.exists', side_effect=mock_exists):
+                with patch('core.updater.os.path.getsize', return_value=9):
+                    with patch('core.updater.os.remove') as mock_remove:
+                        with patch('core.updater.urlretrieve'):
+                            with patch('core.updater._try_unzip_ffmpeg', side_effect=[False, True]):
+                                result = update_utilities(
+                                    'http://test.com/ffmpeg-master.zip',
+                                    temp_dir
+                                )
+
+                                mock_remove.assert_called_once_with(zip_path)
+                                assert result is True
+
+    def test_update_utilities_missing_content_length_no_exception(self, temp_dir):
+        """Тест что отсутствие Content-Length не вызывает исключение."""
+        mock_response = Mock()
+        mock_response.getheader.return_value = None
+
+        with patch('core.updater.urlopen', return_value=mock_response):
+            with patch('core.updater.os.path.exists', return_value=False):
+                with patch('core.updater.urlretrieve'):
+                    result = update_utilities('http://test.com/file.exe', temp_dir)
+                    assert result is True
 
     def test_update_utilities_progress_callback(self, temp_dir):
         """Тест что вызывается callback прогресса."""

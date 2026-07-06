@@ -753,7 +753,7 @@ class MainWindow(ctk.CTk):
             
             def deno_progress(msg):
                 """Обновление прогресса загрузки deno."""
-                self.after(0, lambda: self.log_viewer.info(msg))
+                self.after(0, lambda m=msg: self.log_viewer.info(m))
                 # Обновляем прогресс-бар если есть процент
                 if '%' in msg:
                     try:
@@ -779,13 +779,13 @@ class MainWindow(ctk.CTk):
             percent = (uploaded / total * 100) if total > 0 else 0
             size_uploaded = uploaded // 1024 // 1024
             size_total = total // 1024 // 1024
-            self.after(0, lambda: self.log_viewer.info(
-                f"{filename}: {percent:.1f}% ({size_uploaded}MB / {size_total}MB)"
+            self.after(0, lambda fn=filename, p=percent, su=size_uploaded, st=size_total: self.log_viewer.info(
+                f"{fn}: {p:.1f}% ({su}MB / {st}MB)"
             ))
             # Обновляем прогресс-бар
-            self.after(0, lambda: self.progress_bar.update_progress(
-                percent,
-                text=f"Обновление {filename}: {size_uploaded}MB / {size_total}MB"
+            self.after(0, lambda p=percent, fn=filename, su=size_uploaded, st=size_total: self.progress_bar.update_progress(
+                p,
+                text=f"Обновление {fn}: {su}MB / {st}MB"
             ))
 
         try:
@@ -826,7 +826,7 @@ class MainWindow(ctk.CTk):
                     force_update = False
 
                 if force_update or check_needs_update(url, save_path):
-                    self.after(0, lambda: self.log_viewer.info(f"Загрузка {save_name}..."))
+                    self.after(0, lambda sn=save_name: self.log_viewer.info(f"Загрузка {sn}..."))
 
                     def _progress_wrapper(uploaded, total, fn=save_name):
                         progress_callback(fn, uploaded, total)
@@ -837,9 +837,14 @@ class MainWindow(ctk.CTk):
                         logger.debug(f"_update_utilities: {save_name} обновлён")
                     else:
                         logger.debug(f"_update_utilities: {save_name} ошибка")
+                        if 'ffmpeg' in save_name.lower():
+                            self.after(0, lambda: self.log_viewer.warning(
+                                "Не удалось обновить или распаковать ffmpeg. "
+                                "Проверьте подключение к интернету и повторите попытку."
+                            ))
                 else:
                     logger.debug(f"_update_utilities: {save_name} актуален")
-                    self.after(0, lambda: self.log_viewer.success(f"{save_name} актуален"))
+                    self.after(0, lambda sn=save_name: self.log_viewer.success(f"{sn} актуален"))
 
             if updated_count > 0:
                 self.after(0, lambda: self.log_viewer.success(f"Обновлено утилит: {updated_count}"))
@@ -848,7 +853,7 @@ class MainWindow(ctk.CTk):
 
         except Exception as e:
             logger.error(f"_update_utilities: Ошибка: {e}", exc_info=True)
-            self.after(0, lambda: self.log_viewer.warning(f"Ошибка обновления: {e}"))
+            self.after(0, lambda err=e: self.log_viewer.warning(f"Ошибка обновления: {err}"))
 
         # Сброс прогресс-бара после обновления
         self.after(0, lambda: self.progress_bar.reset())
