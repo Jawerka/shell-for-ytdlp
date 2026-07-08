@@ -311,3 +311,15 @@ class TestHelperFunctions:
                     result = get_utilities_path()
                     
                     mock_makedirs.assert_called_once_with('/app/utilities', exist_ok=True)
+
+    def test_ensure_app_runtime_layout(self, tmp_path):
+        """ensure_app_runtime_layout создаёт utilities/ и идемпотентен."""
+        from core.config import ensure_app_runtime_layout
+
+        with patch('core.config.get_app_base_path', return_value=str(tmp_path)):
+            path1 = ensure_app_runtime_layout()
+            path2 = ensure_app_runtime_layout()
+
+        assert path1 == path2
+        assert os.path.isdir(path1)
+        assert path1 == str(tmp_path / 'utilities')

@@ -1,0 +1,34 @@
+# False positive submission template for UI-for-ytdlp
+# Fill SHA256 after release build, then submit to vendors below.
+
+VERSION=0.3.2
+REPO=https://github.com/Jawerka/shell-for-ytdlp
+
+# Local dev build SHA256 (Python 3.10 venv, onedir, upx=False, 2026-07-07):
+SHA256_EXE=A0EADFB14B786DF7F714F8A7C19AD404023B43652790C611A108156B1174FD0B
+SHA256_SETUP=10C22239430E3692EB12A1F98DF9C3525D88F83881A5BA99A2ED465F890D0377
+
+--- Microsoft Defender ---
+URL: https://www.microsoft.com/en-us/wdsi/filesubmission
+Type: Software developer
+File: UI-for-ytdlp-<version>-windows-x64-setup.exe (or zip)
+
+Subject: False positive — UI-for-ytdlp open-source yt-dlp GUI
+
+Body (EN):
+UI-for-ytdlp is an open-source Windows GUI for yt-dlp (MIT License).
+Source: https://github.com/Jawerka/shell-for-ytdlp
+Version: <VERSION>
+Build: PyInstaller onedir (not UPX-packed), Inno Setup installer.
+The app downloads yt-dlp and ffmpeg from official GitHub releases on first run.
+SHA256 (setup): <SHA256_SETUP>
+SHA256 (exe): <SHA256_EXE>
+Please whitelist / remove detection.
+
+--- VirusTotal ---
+URL: https://www.virustotal.com/
+Action: Open file report → Detection → Request re-analysis
+Comment: Same as Microsoft body above. Re-scan after onedir + no UPX build.
+
+--- Other vendors (from VT report) ---
+Submit individually via vendor false-positive portals if detections remain.

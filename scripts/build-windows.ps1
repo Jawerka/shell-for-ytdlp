@@ -29,14 +29,24 @@ try {
     $outputDirResolved = (Resolve-Path -LiteralPath $OutputDir).Path
 
     Write-Host "Building UI-for-ytdlp with PyInstaller..."
-    python build.py
+    $venvPython = Join-Path $root "venv\Scripts\python.exe"
+    if (Test-Path $venvPython) {
+        & $venvPython build.py
+    } else {
+        python build.py
+    }
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
     }
 
-    $releaseExe = Join-Path $outputDirResolved "UI-for-ytdlp.exe"
+    $releaseDir = Join-Path $outputDirResolved "UI-for-ytdlp"
+    $releaseExe = Join-Path $releaseDir "UI-for-ytdlp.exe"
+    $utilitiesDir = Join-Path $releaseDir "utilities"
     if (-not (Test-Path $releaseExe)) {
         throw "Release binary not found: $releaseExe"
+    }
+    if (-not (Test-Path $utilitiesDir)) {
+        throw "utilities/ folder not found: $utilitiesDir"
     }
 
     $version = & (Join-Path $PSScriptRoot "read-app-version.ps1")
@@ -45,7 +55,7 @@ try {
 
     Write-Host "Packaging $zipName..."
     if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
-    Compress-Archive -Path $releaseExe -DestinationPath $zipPath -Force
+    tar -a -cf $zipPath -C $outputDirResolved "UI-for-ytdlp"
 
     Write-Host "Building Windows installer..."
     & (Join-Path $PSScriptRoot "package-windows-installer.ps1") `
@@ -56,7 +66,7 @@ try {
     $setupPath = Join-Path $outputDirResolved "UI-for-ytdlp-$version-windows-x64-setup.exe"
     Write-Host ""
     Write-Host "Windows release artifacts:" -ForegroundColor Green
-    Write-Host "  $releaseExe"
+    Write-Host "  $releaseDir\"
     Write-Host "  $zipPath"
     Write-Host "  $setupPath"
 

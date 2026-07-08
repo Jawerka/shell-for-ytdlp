@@ -181,6 +181,9 @@ def log_memory_usage(stage: str):
 def main():
     """Точка входа приложения."""
     logger.debug("Вызов main()")
+
+    from core.config import ensure_app_runtime_layout
+    ensure_app_runtime_layout()
     
     # Диагностика окружения
     diagnose_environment()

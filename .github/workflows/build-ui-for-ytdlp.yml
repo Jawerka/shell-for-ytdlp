@@ -68,18 +68,25 @@ jobs:
         run: pytest tests/ -m "not integration" --cov=core --cov-report=term-missing --cov-fail-under=70
 
       - name: Build with PyInstaller
-        run: python -m PyInstaller --clean --noconfirm UI-for-ytdlp.spec
+        run: python build.py
 
       - name: Verify build
         shell: pwsh
         run: |
-          $exe = "dist\${{ env.APP_NAME }}.exe"
+          $appDir = "dist\${{ env.APP_NAME }}"
+          $exe = Join-Path $appDir "${{ env.APP_NAME }}.exe"
+          $utilities = Join-Path $appDir "utilities"
           if (-not (Test-Path $exe)) {
-            Write-Error "Build failed: EXE file not found"
+            Write-Error "Build failed: EXE file not found at $exe"
+            exit 1
+          }
+          if (-not (Test-Path $utilities)) {
+            Write-Error "Build failed: utilities/ folder not found at $utilities"
             exit 1
           }
           $fileSize = (Get-Item $exe).Length / 1MB
-          Write-Host "Build successful! File size: $([math]::Round($fileSize, 2)) MB"
+          Write-Host "Build successful! Exe size: $([math]::Round($fileSize, 2)) MB"
+          Write-Host "App directory: $appDir"
 
       - name: Install Inno Setup
         if: startsWith(github.ref, 'refs/tags/v')
@@ -94,7 +101,7 @@ jobs:
             throw "Invalid semver for release packaging: $version"
           }
           $zipName = "${{ env.APP_NAME }}-$version-windows-x64.zip"
-          Compress-Archive -Path "dist\${{ env.APP_NAME }}.exe" -DestinationPath "dist\$zipName" -Force
+          tar -a -cf "dist\$zipName" -C dist "${{ env.APP_NAME }}"
           Write-Host "Created dist\$zipName"
           & .\scripts\package-windows-installer.ps1 -Version $version -ReleaseDir dist -OutputDir dist
 
@@ -131,7 +138,7 @@ jobs:
         with:
           vt_api_key: ${{ secrets.VIRUSTOTAL_API }}
           files: |
-            dist/${{ env.APP_NAME }}.exe
+            dist/${{ env.APP_NAME }}/${{ env.APP_NAME }}.exe
           check_existing: true
 
       - name: Scan main.py with VirusTotal
@@ -185,7 +192,6 @@ jobs:
           name: Version ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           files: |
-            dist/${{ env.APP_NAME }}.exe
             dist/${{ env.APP_NAME }}-*-windows-x64.zip
             dist/${{ env.APP_NAME }}-*-windows-x64-setup.exe
           body_path: release_notes.txt

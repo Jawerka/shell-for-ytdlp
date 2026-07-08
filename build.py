@@ -11,13 +11,17 @@ Requirements:
     - Installed dependencies: pip install -r requirements.txt
 
 Result:
-    dist/UI-for-ytdlp.exe
+    dist/UI-for-ytdlp/UI-for-ytdlp.exe
 """
 
 import subprocess
 import shutil
 import os
 import sys
+
+APP_NAME = 'UI-for-ytdlp'
+DIST_APP_DIR = os.path.join('dist', APP_NAME)
+EXE_PATH = os.path.join(DIST_APP_DIR, f'{APP_NAME}.exe')
 
 
 def clean_build_dirs():
@@ -28,6 +32,20 @@ def clean_build_dirs():
         if os.path.exists(dir_name):
             print(f"Cleaning {dir_name}/...")
             shutil.rmtree(dir_name)
+
+
+def scaffold_dist_layout(app_dir: str) -> None:
+    """Create utilities/ beside the onedir exe (matches runtime layout)."""
+    utilities = os.path.join(app_dir, 'utilities')
+    os.makedirs(utilities, exist_ok=True)
+
+    gitkeep_src = os.path.join('utilities', '.gitkeep')
+    gitkeep_dst = os.path.join(utilities, '.gitkeep')
+    if os.path.exists(gitkeep_src):
+        shutil.copy2(gitkeep_src, gitkeep_dst)
+    elif not os.path.exists(gitkeep_dst):
+        with open(gitkeep_dst, 'a', encoding='utf-8'):
+            pass
 
 
 def build_with_pyinstaller():
@@ -62,14 +80,14 @@ def build_with_pyinstaller():
             print("BUILD SUCCESSFUL!")
             print("=" * 50)
             
-            # Check exe
-            exe_path = os.path.join('dist', 'UI-for-ytdlp.exe')
-            if os.path.exists(exe_path):
-                exe_size = os.path.getsize(exe_path) / 1024 / 1024
-                print(f"\nFile: {exe_path}")
-                print(f"Size: {exe_size:.1f} MB")
+            if os.path.exists(EXE_PATH):
+                scaffold_dist_layout(DIST_APP_DIR)
+                exe_size = os.path.getsize(EXE_PATH) / 1024 / 1024
+                print(f"\nDirectory: {DIST_APP_DIR}")
+                print(f"Executable: {EXE_PATH}")
+                print(f"Exe size: {exe_size:.1f} MB")
             else:
-                print("\nWarning: exe file not found in dist/")
+                print(f"\nWarning: executable not found at {EXE_PATH}")
         else:
             print("\nBuild error!")
             sys.exit(1)

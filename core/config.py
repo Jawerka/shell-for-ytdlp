@@ -50,6 +50,11 @@ def get_utilities_path() -> str:
     return utilities
 
 
+def ensure_app_runtime_layout() -> str:
+    """Создать каталоги данных приложения рядом с exe (идемпотентно)."""
+    return get_utilities_path()
+
+
 def get_config_path() -> str:
     """Получить путь к файлу конфигурации."""
     return os.path.join(get_utilities_path(), 'config.json')
