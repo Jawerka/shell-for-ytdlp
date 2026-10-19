@@ -73,9 +73,8 @@ jobs:
       - name: Verify build
         shell: pwsh
         run: |
-          $appDir = "dist\${{ env.APP_NAME }}"
-          $exe = Join-Path $appDir "${{ env.APP_NAME }}.exe"
-          $utilities = Join-Path $appDir "utilities"
+          $exe = "dist\${{ env.APP_NAME }}.exe"
+          $utilities = "dist\utilities"
           if (-not (Test-Path $exe)) {
             Write-Error "Build failed: EXE file not found at $exe"
             exit 1
@@ -86,7 +85,6 @@ jobs:
           }
           $fileSize = (Get-Item $exe).Length / 1MB
           Write-Host "Build successful! Exe size: $([math]::Round($fileSize, 2)) MB"
-          Write-Host "App directory: $appDir"
 
       - name: Install Inno Setup
         if: startsWith(github.ref, 'refs/tags/v')
@@ -101,7 +99,7 @@ jobs:
             throw "Invalid semver for release packaging: $version"
           }
           $zipName = "${{ env.APP_NAME }}-$version-windows-x64.zip"
-          tar -a -cf "dist\$zipName" -C dist "${{ env.APP_NAME }}"
+          tar -a -cf "dist\$zipName" -C dist "${{ env.APP_NAME }}.exe" "utilities"
           Write-Host "Created dist\$zipName"
           & .\scripts\package-windows-installer.ps1 -Version $version -ReleaseDir dist -OutputDir dist
 
@@ -138,7 +136,7 @@ jobs:
         with:
           vt_api_key: ${{ secrets.VIRUSTOTAL_API }}
           files: |
-            dist/${{ env.APP_NAME }}/${{ env.APP_NAME }}.exe
+            dist/${{ env.APP_NAME }}.exe
           check_existing: true
 
       - name: Scan main.py with VirusTotal
@@ -192,6 +190,7 @@ jobs:
           name: Version ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           files: |
+            dist/${{ env.APP_NAME }}.exe
             dist/${{ env.APP_NAME }}-*-windows-x64.zip
             dist/${{ env.APP_NAME }}-*-windows-x64-setup.exe
           body_path: release_notes.txt

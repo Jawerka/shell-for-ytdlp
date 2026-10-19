@@ -39,9 +39,8 @@ try {
         exit $LASTEXITCODE
     }
 
-    $releaseDir = Join-Path $outputDirResolved "UI-for-ytdlp"
-    $releaseExe = Join-Path $releaseDir "UI-for-ytdlp.exe"
-    $utilitiesDir = Join-Path $releaseDir "utilities"
+    $releaseExe = Join-Path $outputDirResolved "UI-for-ytdlp.exe"
+    $utilitiesDir = Join-Path $outputDirResolved "utilities"
     if (-not (Test-Path $releaseExe)) {
         throw "Release binary not found: $releaseExe"
     }
@@ -55,7 +54,7 @@ try {
 
     Write-Host "Packaging $zipName..."
     if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
-    tar -a -cf $zipPath -C $outputDirResolved "UI-for-ytdlp"
+    tar -a -cf $zipPath -C $outputDirResolved "UI-for-ytdlp.exe" "utilities"
 
     Write-Host "Building Windows installer..."
     & (Join-Path $PSScriptRoot "package-windows-installer.ps1") `
@@ -66,7 +65,7 @@ try {
     $setupPath = Join-Path $outputDirResolved "UI-for-ytdlp-$version-windows-x64-setup.exe"
     Write-Host ""
     Write-Host "Windows release artifacts:" -ForegroundColor Green
-    Write-Host "  $releaseDir\"
+    Write-Host "  $releaseExe"
     Write-Host "  $zipPath"
     Write-Host "  $setupPath"
 

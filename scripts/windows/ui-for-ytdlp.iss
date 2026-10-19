@@ -2,7 +2,7 @@
 ; CI/local: scripts/package-windows-installer.ps1
 
 #ifndef MyAppVersion
-  #define MyAppVersion "0.3.2"
+  #define MyAppVersion "0.3.4"
 #endif
 #ifndef ReleaseDir
   #define ReleaseDir "..\..\dist"
@@ -49,7 +49,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Name: "{app}\utilities"
 
 [Files]
-Source: "{#ReleaseDir}\{#MyAppName}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#ReleaseDir}\{#MyAppName}.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"

@@ -5,7 +5,7 @@
 
 **Modern GUI for yt-dlp built with customtkinter.**
 
-![Version](https://img.shields.io/badge/version-0.3.2-blue)
+![Version](https://img.shields.io/badge/version-0.3.4-blue)
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -225,6 +225,15 @@ pytest tests/ -v -m integration
 ---
 
 ## Changelog
+
+### v0.3.4 (2026-10-19)
+- Повтор загрузки после HTTP 416 без `--continue` (с нуля, один раз)
+- Подписанные query-параметры URL сохраняются; у YouTube убираются только `list`/`index`
+- Проверка URL больше не блокирует окно; проверяются хост и порт
+- Отменяемые атомарные обновления утилит; проверка полноты загрузки, ffmpeg-архива и запуска deno
+- Повторная загрузка того же URL вручную; автозагрузка из буфера при старте не дублирует последнюю ссылку
+- Сборка снова **onefile**: Python-зависимости и ресурсы внутри exe, `utilities/` рядом
+- Release notes: [.github/release-notes/v0.3.4.md](.github/release-notes/v0.3.4.md)
 
 ### v0.3.2 (2026-07-07)
 - Промежуточные файлы (`.part`, фрагменты HLS) в `{папка загрузки}/_UI-for-ytdlp-temp`; папка удаляется после успешной загрузки

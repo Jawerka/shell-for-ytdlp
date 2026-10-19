@@ -15,9 +15,8 @@ if (-not $IssFile) {
 }
 
 $releasePath = Resolve-Path $ReleaseDir
-$appDir = Join-Path $releasePath 'UI-for-ytdlp'
-$exe = Join-Path $appDir 'UI-for-ytdlp.exe'
-$utilities = Join-Path $appDir 'utilities'
+$exe = Join-Path $releasePath 'UI-for-ytdlp.exe'
+$utilities = Join-Path $releasePath 'utilities'
 
 if (-not (Test-Path $exe)) {
     throw "Release build not found: $exe (run python build.py first)"
@@ -45,7 +44,7 @@ Inno Setup 6 not found. Install from https://jrsoftware.org/isinfo.php
 "@
 }
 
-Write-Host "Packaging UI-for-ytdlp $Version from $appDir"
+Write-Host "Packaging UI-for-ytdlp $Version from $releasePath"
 & $iscc $IssFile `
     "/DMyAppVersion=$Version" `
     "/DReleaseDir=$releasePath" `
