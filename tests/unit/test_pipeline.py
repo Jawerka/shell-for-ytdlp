@@ -26,37 +26,31 @@ from core.pipeline import (
 
 
 class TestValidateUrlForDownload:
-    @patch('core.pipeline.urlopen')
-    def test_success(self, mock_urlopen):
-        mock_urlopen.return_value.close = Mock()
+    @patch('core.pipeline.urlopen', create=True)
+    def test_success_without_network(self, mock_urlopen):
         ok, url, warning = validate_url_for_download('https://youtube.com/watch?v=test')
         assert ok is True
         assert url == 'https://youtube.com/watch?v=test'
         assert warning == ''
+        mock_urlopen.assert_not_called()
 
-    @patch('core.pipeline.urlopen')
-    def test_http_error_continues(self, mock_urlopen):
-        from urllib.error import HTTPError
-        mock_urlopen.side_effect = HTTPError('url', 404, 'Not Found', {}, None)
-        ok, url, warning = validate_url_for_download('https://youtube.com/watch?v=test')
+    def test_keeps_query_string(self):
+        url = 'https://example.com/video?token=abc&sig=xyz&expires=1'
+        ok, result, warning = validate_url_for_download(url)
         assert ok is True
-        assert '404' in warning
+        assert result == url
+        assert warning == ''
 
-    @patch('core.pipeline.urlopen')
-    def test_timeout_soft_fail_for_youtube(self, mock_urlopen):
-        import socket
-        mock_urlopen.side_effect = socket.timeout()
-        ok, url, warning = validate_url_for_download('https://youtube.com/watch?v=test')
-        assert ok is True
-        assert 'таймаут' in warning.lower() or 'yt-dlp' in warning
-
-    @patch('core.pipeline.urlopen')
-    def test_timeout_hard_fail_for_unknown(self, mock_urlopen):
-        import socket
-        mock_urlopen.side_effect = socket.timeout()
-        ok, message, warning = validate_url_for_download('https://unknown-site.example/video')
+    def test_rejects_missing_protocol(self):
+        ok, message, warning = validate_url_for_download('youtube.com/watch?v=test')
         assert ok is False
         assert warning == ''
+
+    @pytest.mark.parametrize('url', ['https://', 'https:///path'])
+    def test_rejects_url_without_host(self, url):
+        ok, message, warning = validate_url_for_download(url)
+        assert ok is False
+        assert 'хост' in message
 
     def test_empty_url(self):
         ok, message, warning = validate_url_for_download('')

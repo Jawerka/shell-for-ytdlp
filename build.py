@@ -11,7 +11,7 @@ Requirements:
     - Installed dependencies: pip install -r requirements.txt
 
 Result:
-    dist/UI-for-ytdlp/UI-for-ytdlp.exe
+    dist/UI-for-ytdlp.exe
 """
 
 import subprocess
@@ -20,7 +20,7 @@ import os
 import sys
 
 APP_NAME = 'UI-for-ytdlp'
-DIST_APP_DIR = os.path.join('dist', APP_NAME)
+DIST_APP_DIR = 'dist'
 EXE_PATH = os.path.join(DIST_APP_DIR, f'{APP_NAME}.exe')
 
 
@@ -35,7 +35,7 @@ def clean_build_dirs():
 
 
 def scaffold_dist_layout(app_dir: str) -> None:
-    """Create utilities/ beside the onedir exe (matches runtime layout)."""
+    """Create utilities/ beside the onefile exe (matches runtime layout)."""
     utilities = os.path.join(app_dir, 'utilities')
     os.makedirs(utilities, exist_ok=True)
 

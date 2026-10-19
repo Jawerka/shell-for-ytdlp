@@ -10,7 +10,7 @@ Unit-тесты для модуля core/utils.py.
 """
 
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, Mock
 import os
 
 from core.utils import (
@@ -19,6 +19,8 @@ from core.utils import (
     extract_video_url,
     validate_url_for_ui,
     find_cookies_txt,
+    strip_youtube_playlist_params,
+    download_file,
 )
 
 
@@ -197,55 +199,116 @@ class TestValidateUrlForUi:
         assert is_valid is False
         assert "http://" in message or "https://" in message
 
-    def test_valid_url(self):
-        """Проверка валидного URL."""
+    def test_valid_url_without_network(self):
+        """Валидация не делает сетевых запросов."""
         with patch('core.utils.urlopen') as mock_urlopen:
-            mock_response = MagicMock()
-            mock_urlopen.return_value = mock_response
-            is_valid, message = validate_url_for_ui('https://example.com')
+            is_valid, message = validate_url_for_ui('https://example.com?a=1&b=2')
             assert is_valid is True
-            assert message == "Ссылка доступна"
+            assert message == "URL принят"
+            mock_urlopen.assert_not_called()
 
-    def test_http_error(self):
-        """Проверка HTTP ошибки."""
-        from urllib.error import HTTPError
-        with patch('core.utils.urlopen') as mock_urlopen:
-            mock_urlopen.side_effect = HTTPError(
-                url='http://example.com',
-                code=404,
-                msg='Not Found',
-                hdrs={},
-                fp=None
-            )
-            is_valid, message = validate_url_for_ui('http://example.com')
-            assert is_valid is True  # yt-dlp попробует скачать
-            assert '404' in message
+    @pytest.mark.parametrize('url', ['https://', 'https:///path'])
+    def test_url_without_host(self, url):
+        is_valid, message = validate_url_for_ui(url)
+        assert is_valid is False
+        assert "хост" in message
 
-    def test_timeout(self):
-        """Проверка таймаута."""
-        import socket
-        with patch('core.utils.urlopen') as mock_urlopen:
-            mock_urlopen.side_effect = socket.timeout()
-            is_valid, message = validate_url_for_ui('http://example.com')
-            assert is_valid is False
-            assert "таймаут" in message.lower()
+    def test_malformed_url_does_not_raise(self):
+        is_valid, message = validate_url_for_ui('http://[::1')
+        assert is_valid is False
+        assert "формат" in message
 
-    def test_url_error(self):
-        """Проверка ошибки сети."""
-        from urllib.error import URLError
-        with patch('core.utils.urlopen') as mock_urlopen:
-            mock_urlopen.side_effect = URLError('Network error')
-            is_valid, message = validate_url_for_ui('http://example.com')
-            assert is_valid is False
-            assert "Ошибка сети" in message
+    @pytest.mark.parametrize('url', ['https://example.com:bad/', 'https://example.com:99999/'])
+    def test_invalid_port(self, url):
+        is_valid, message = validate_url_for_ui(url)
+        assert is_valid is False
+        assert "формат" in message
 
-    def test_value_error(self):
-        """Проверка неверного формата URL."""
-        with patch('core.utils.urlopen') as mock_urlopen:
-            mock_urlopen.side_effect = ValueError('Invalid URL')
-            is_valid, message = validate_url_for_ui('http://example.com')
-            assert is_valid is False
-            assert "Неверный формат" in message
+    def test_normal_url_with_host(self):
+        is_valid, message = validate_url_for_ui('https://example.com/path?x=1')
+        assert is_valid is True
+
+
+class TestStripYoutubePlaylistParams:
+    def test_watch_keeps_other_params(self):
+        url = 'https://youtube.com/watch?v=abc&list=PL1&index=3&t=10s'
+        assert strip_youtube_playlist_params(url) == 'https://youtube.com/watch?v=abc&t=10s'
+
+    def test_playlist_url_is_untouched(self):
+        url = 'https://youtube.com/playlist?list=PL1'
+        assert strip_youtube_playlist_params(url) == url
+
+    def test_non_youtube_signed_url_is_untouched(self):
+        url = 'https://cdn.example.com/v.mp4?token=a&sig=b%2B&expires=1'
+        assert strip_youtube_playlist_params(url) == url
+
+
+class TestDownloadFile:
+    def test_writes_and_replaces_atomically(self, tmp_path):
+        dest = tmp_path / 'file.bin'
+        response = MagicMock()
+        response.getheader.return_value = '5'
+        response.read.side_effect = [b'abc', b'de', b'']
+
+        with patch('core.utils.urlopen', return_value=response):
+            assert download_file('http://example.com/file.bin', str(dest)) is True
+
+        assert dest.read_bytes() == b'abcde'
+        assert not (tmp_path / 'file.bin.part').exists()
+        response.close.assert_called_once()
+
+    def test_cancel_removes_partial_file(self, tmp_path):
+        dest = tmp_path / 'file.bin'
+        response = MagicMock()
+        response.getheader.return_value = '100'
+        response.read.return_value = b'x'
+        cancel_event = Mock()
+        cancel_event.is_set.side_effect = [False, True]
+
+        with patch('core.utils.urlopen', return_value=response):
+            assert download_file(
+                'http://example.com/file.bin', str(dest), cancel_event=cancel_event
+            ) is False
+
+        assert not dest.exists()
+        assert not (tmp_path / 'file.bin.part').exists()
+
+    def test_short_response_is_an_error(self, tmp_path):
+        dest = tmp_path / 'file.bin'
+        response = MagicMock()
+        response.getheader.return_value = '4'
+        response.read.side_effect = [b'a', b'']
+
+        with patch('core.utils.urlopen', return_value=response):
+            with pytest.raises(OSError):
+                download_file('http://example.com/file.bin', str(dest))
+
+        assert not dest.exists()
+        assert not (tmp_path / 'file.bin.part').exists()
+
+    def test_zero_content_length_is_an_error(self, tmp_path):
+        dest = tmp_path / 'file.bin'
+        response = MagicMock()
+        response.getheader.return_value = '0'
+        response.read.return_value = b''
+
+        with patch('core.utils.urlopen', return_value=response):
+            with pytest.raises(OSError):
+                download_file('http://example.com/file.bin', str(dest))
+
+        assert not dest.exists()
+        assert not (tmp_path / 'file.bin.part').exists()
+
+    def test_unknown_length_accepts_received_bytes(self, tmp_path):
+        dest = tmp_path / 'file.bin'
+        response = MagicMock()
+        response.getheader.return_value = None
+        response.read.side_effect = [b'abc', b'']
+
+        with patch('core.utils.urlopen', return_value=response):
+            assert download_file('http://example.com/file.bin', str(dest)) is True
+
+        assert dest.read_bytes() == b'abc'
 
 
 class TestFindCookiesTxt:

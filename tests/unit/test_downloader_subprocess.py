@@ -108,6 +108,37 @@ class TestDownloadSubprocess:
         error_calls = [c for c in log_callback.call_args_list if c[0][1] == 'error']
         assert error_calls
 
+    def test_retries_without_continue_on_http_416(self, tmp_path):
+        (tmp_path / 'yt-dlp.exe').write_bytes(b'')
+        downloader, log_callback, _ = _make_downloader(tmp_path)
+
+        first = MagicMock()
+        first.pid = 1
+        first.stdout = iter([
+            b'ERROR: unable to download video data: HTTP Error 416: Requested range not satisfiable\n',
+        ])
+        first.wait.return_value = 1
+
+        second = MagicMock()
+        second.pid = 2
+        second.stdout = iter([])
+        second.wait.return_value = 0
+
+        with patch('core.downloader.subprocess.Popen', side_effect=[first, second]) as mock_popen:
+            with patch('core.downloader.cleanup_download_temp_directory'):
+                result = downloader.download('https://youtube.com/watch?v=test')
+
+        assert result is True
+        assert mock_popen.call_count == 2
+
+        first_cmd = mock_popen.call_args_list[0][0][0]
+        second_cmd = mock_popen.call_args_list[1][0][0]
+        assert '--continue' in first_cmd
+        assert '--no-continue' in second_cmd
+
+        warning_calls = [c for c in log_callback.call_args_list if c[0][1] == 'warning']
+        assert any('416' in c[0][0] for c in warning_calls)
+
     def test_cancel_mid_stream(self, tmp_path):
         (tmp_path / 'yt-dlp.exe').write_bytes(b'')
         downloader, log_callback, _ = _make_downloader(tmp_path)

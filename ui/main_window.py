@@ -70,6 +70,7 @@ class MainWindow(ctk.CTk):
 
         self.is_downloading = False
         self.downloader: Optional[YouTubeDownloader] = None
+        self._cancel_event = threading.Event()
 
         self.icon_download = IconManager.get("download", "⭳")
         self.icon_folder = IconManager.get("folder", "📂")
@@ -281,12 +282,18 @@ class MainWindow(ctk.CTk):
     def _check_clipboard_and_download(self) -> None:
         """Проверить буфер обмена и начать загрузку если есть URL."""
         url = get_clipboard_url()
-        if url:
-            self.url_input.set_url(url)
-            self.log_viewer.info(f"Обнаружена ссылка в буфере: {url}")
-            self.after(800, self._start_download)
-        else:
+        if not url:
             self.log_viewer.info("Вставьте URL или нажмите кнопку Скачать")
+            return
+
+        last_url = self.config_manager.get('LAST_DOWNLOADED_URL', '')
+        if last_url and last_url.strip() == url.strip():
+            self.log_viewer.info(f"Ссылка уже была загружена: {url[:80]}... (пропуск)")
+            return
+
+        self.url_input.set_url(url)
+        self.log_viewer.info(f"Обнаружена ссылка в буфере: {url}")
+        self.after(800, self._start_download)
 
     def _create_ui(self) -> None:
         """Создать пользовательский интерфейс с едиными отступами."""
@@ -647,14 +654,10 @@ class MainWindow(ctk.CTk):
 
         url = result
 
-        # Проверка: не загружали ли уже этот URL
-        last_url = self.config_manager.get('LAST_DOWNLOADED_URL', '')
-        if last_url and last_url == url:
-            self.log_viewer.warning("Этот URL уже был загружен последним. Пропускаю повторную загрузку.")
-            return
-
         # Воспроизведение звука начала загрузки (сразу при нажатии кнопки)
         self.sound_manager.play_start_download()
+
+        self._cancel_event.clear()
 
         # Приостановка мониторинга буфера обмена на время загрузки
         if self.clipboard_monitor.is_running():
@@ -693,7 +696,7 @@ class MainWindow(ctk.CTk):
         try:
             self._update_utilities()
 
-            if not self.is_downloading:
+            if not self.is_downloading or self._cancel_event.is_set():
                 return
 
             ready, message = check_ytdlp_ready(self.config_manager)
@@ -733,7 +736,7 @@ class MainWindow(ctk.CTk):
         self.after(0, lambda: self.log_viewer.info("Повторная загрузка yt-dlp..."))
 
         from core.updater import update_utilities
-        if update_utilities(ytdlp_url, utilities_path):
+        if update_utilities(ytdlp_url, utilities_path, cancel_event=self._cancel_event):
             return check_ytdlp_ready(self.config_manager)
 
         return False, initial_message
@@ -762,7 +765,7 @@ class MainWindow(ctk.CTk):
                     except (ValueError, IndexError):
                         pass
             
-            if not ensure_deno_exists(utilities_path, deno_progress):
+            if not ensure_deno_exists(utilities_path, deno_progress, self._cancel_event):
                 self.after(0, lambda: self.log_viewer.warning(
                     "deno не установлен. Некоторые форматы YouTube могут быть недоступны.\n"
                     "Скачайте с https://github.com/denoland/deno/releases/latest"
@@ -790,7 +793,7 @@ class MainWindow(ctk.CTk):
 
         try:
             for url in urls:
-                if not self.is_downloading:  # Проверка отмены
+                if self._cancel_event.is_set():  # Проверка отмены
                     break
 
                 save_name = os.path.basename(url)
@@ -832,7 +835,7 @@ class MainWindow(ctk.CTk):
                         progress_callback(fn, uploaded, total)
 
                     from core.updater import update_utilities
-                    if update_utilities(url, utilities_path, _progress_wrapper):
+                    if update_utilities(url, utilities_path, _progress_wrapper, self._cancel_event):
                         updated_count += 1
                         logger.debug(f"_update_utilities: {save_name} обновлён")
                     else:
@@ -925,11 +928,12 @@ class MainWindow(ctk.CTk):
             logger.debug("Событие <Iconify> недоступно в этой сборке Tk, трей только через <Unmap>")
 
     def _cancel_download(self) -> None:
-        """Отменить загрузку."""
+        """Отменить загрузку (включая обновление утилит до старта yt-dlp)."""
         if self.is_downloading:
+            self._cancel_event.set()
             if self.downloader:
                 self.downloader.cancel()
-                self.log_viewer.warning("Загрузка отменена пользователем")
+            self.log_viewer.warning("Загрузка отменена пользователем")
 
     def _schedule_tray_minimize_check(self, event=None) -> None:
         """Запланировать проверку «свернули → уйти в трей» после обновления WM."""

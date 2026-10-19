@@ -11,13 +11,10 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-import socket
 from enum import Enum
 from typing import Any, Optional, Tuple
-from urllib.request import urlopen
-from urllib.error import HTTPError, URLError
 
-from .utils import DEFAULT_TIMEOUT, is_supported_video_url
+from .utils import validate_http_url
 
 logger = logging.getLogger('UI-for-ytdlp.pipeline')
 
@@ -37,10 +34,10 @@ class UtilitySeverity(str, Enum):
 
 def validate_url_for_download(url: str) -> ValidationResult:
     """
-    Проверить URL перед загрузкой.
+    Проверить URL перед загрузкой (без сетевого запроса).
 
-    Для известных видео-доменов сетевые ошибки и таймаут — soft fail (warning).
-    Для неизвестных доменов — hard fail.
+    Доступность проверяет yt-dlp во время загрузки; синхронный urlopen
+    блокировал бы поток Tk до 10 секунд.
 
     Returns:
         (ok, url_or_error_message, warning_message)
@@ -49,25 +46,11 @@ def validate_url_for_download(url: str) -> ValidationResult:
         return False, 'Введите URL', ''
 
     url = url.strip()
-    if not url.startswith(('http://', 'https://')):
-        return False, 'URL должен начинаться с http:// или https://', ''
+    error = validate_http_url(url)
+    if error:
+        return False, error, ''
 
-    try:
-        response = urlopen(url, timeout=DEFAULT_TIMEOUT)
-        response.close()
-        return True, url, ''
-    except HTTPError as err:
-        return True, url, f'Сервер ответил кодом {err.code}'
-    except socket.timeout:
-        if is_supported_video_url(url):
-            return True, url, 'Превышено время ожидания при проверке URL (yt-dlp попробует скачать)'
-        return False, 'Превышено время ожидания (таймаут)', ''
-    except URLError as err:
-        if is_supported_video_url(url):
-            return True, url, f'Ошибка сети при проверке URL: {err.reason} (yt-dlp попробует скачать)'
-        return False, f'Ошибка сети: {err.reason}', ''
-    except ValueError:
-        return False, 'Неверный формат URL', ''
+    return True, url, ''
 
 
 def ensure_download_directory(path: str) -> Tuple[bool, str]:

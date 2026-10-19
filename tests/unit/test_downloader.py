@@ -87,18 +87,43 @@ class TestBuildCommand:
         assert len(temp_args) == 1
         assert temp_args[0].endswith('_UI-for-ytdlp-temp')
         assert '--newline' in cmd  # Флаг для корректного вывода прогресса
+        assert cmd[cmd.index('--file-access-retries') + 1] == '10'
+        assert 'file_access:3' in cmd
         assert '-f' in cmd
         assert 'bestvideo+bestaudio/best' in cmd
 
-    def test_build_command_strips_url_params(self, build_downloader):
-        """Тест что URL очищается от параметров."""
-        url_with_params = 'https://youtube.com/watch?v=test&list=PLtest&t=10s'
+    def test_build_command_strips_only_playlist_params(self, build_downloader):
+        """У YouTube watch-ссылки убираются только list/index."""
+        url_with_params = 'https://youtube.com/watch?v=test&list=PLtest&index=2&t=10s'
         cmd = build_downloader._build_command(url_with_params, '/output')
-        
-        # URL должен быть очищен
-        assert 'https://youtube.com/watch?v=test' in cmd
-        assert '&list=' not in cmd
-        assert '&t=' not in cmd
+        joined = ' '.join(cmd)
+
+        assert 'https://youtube.com/watch?v=test&t=10s' in cmd
+        assert '&list=' not in joined
+        assert '&index=' not in joined
+
+    def test_build_command_preserves_signed_query(self, build_downloader):
+        """Подписанные query-параметры не-YouTube URL сохраняются полностью."""
+        url = 'https://cdn.example.com/video.mp4?token=abc&sig=xyz%2B%2F&expires=1'
+        cmd = build_downloader._build_command(url, '/output')
+
+        assert url in cmd
+
+    def test_build_command_keeps_playlist_url(self, build_downloader):
+        """Плейлист без video id не лишается параметра list."""
+        url = 'https://youtube.com/playlist?list=PLtest'
+        cmd = build_downloader._build_command(url, '/output')
+
+        assert url in cmd
+
+    def test_build_command_no_continue(self, build_downloader):
+        """Повторная попытка выполняется без --continue."""
+        cmd = build_downloader._build_command(
+            'https://youtube.com/watch?v=test', '/output', resume=False
+        )
+
+        assert '--no-continue' in cmd
+        assert '--continue' not in cmd
 
     def test_build_command_with_sponsorblock(self, build_downloader):
         """Тест команды с SponsorBlock."""
@@ -266,6 +291,20 @@ class TestParsePhaseStatus:
     def test_parse_phase_status_sponsorblock(self, downloader):
         line = '[SponsorBlock] Removing sponsor segments'
         assert downloader._parse_phase_status(line) == 'SponsorBlock (ffmpeg)...'
+
+    def test_parse_file_access_retry_shows_reassuring_status(self, downloader):
+        line = (
+            '[download] Unable to rename file: [WinError 32] file is in use. '
+            'Retrying (2/10)...'
+        )
+        assert downloader._parse_file_access_retry(line) == (
+            'Файл временно занят другой программой. Повторяем автоматически (2/10)...'
+        )
+
+    def test_parse_file_access_retry_ignores_other_errors(self, downloader):
+        assert downloader._parse_file_access_retry(
+            '[download] Unable to download fragment: HTTP Error 500'
+        ) is None
 
 
 class TestLogBuffer:

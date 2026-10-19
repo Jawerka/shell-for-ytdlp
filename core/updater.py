@@ -10,10 +10,13 @@
 import os
 import shutil
 import logging
-from typing import Callable, Optional, List
+import tempfile
+from typing import Any, Callable, Optional, List
 from zipfile import ZipFile, BadZipFile
-from urllib.request import urlopen, urlretrieve
+from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
+
+from .utils import download_file
 
 # Логгер для отладки
 logger = logging.getLogger('UI-for-ytdlp.updater')
@@ -44,54 +47,63 @@ def ffmpeg_extracted(work_path: str) -> bool:
     )
 
 
+def _is_safe_zip_member(staging_dir: str, name: str) -> bool:
+    """Проверить, что путь внутри ZIP не выходит за пределы staging-каталога."""
+    root = os.path.realpath(staging_dir)
+    target = os.path.realpath(os.path.join(root, name))
+    return target == root or target.startswith(root + os.sep)
+
+
 def unzipping_ffmpeg(archive_path: str, utilities_path: str) -> None:
     """
-    Распаковать ffmpeg из ZIP-архива.
+    Распаковать ffmpeg из ZIP-архива, не трогая текущую установку до проверки.
+
+    Архив распаковывается во временный каталог; рабочие бинарники заменяются
+    только после того, как все ожидаемые файлы найдены.
 
     Args:
         archive_path: Путь к ZIP-архиву
         utilities_path: Путь к директории утилит
 
     Raises:
-        BadZipFile: Архив повреждён или не является zip-файлом
+        BadZipFile: Архив повреждён или в нём нет нужных файлов
     """
     logger.debug(f"unzipping_ffmpeg: archive={archive_path}, utilities={utilities_path}")
 
     ffmpeg_folder_name = os.path.basename(archive_path).split('.')[0]
     ffmpeg_folder_path = os.path.join(utilities_path, ffmpeg_folder_name)
-    bin_path = os.path.join(ffmpeg_folder_path, 'bin')
+    staging_dir = tempfile.mkdtemp(prefix='.ffmpeg-', dir=utilities_path)
 
-    # Удаление старых файлов
-    for ff_file in FFMPEG_FILE_LIST:
-        ff_file_path = os.path.join(utilities_path, ff_file)
-        if os.path.exists(ff_file_path):
-            logger.debug(f"unzipping_ffmpeg: Удаление старого {ff_file}")
-            os.remove(ff_file_path)
+    try:
+        logger.debug("unzipping_ffmpeg: Распаковка архива во временный каталог")
+        with ZipFile(archive_path, 'r') as zfile:
+            bad_file = zfile.testzip()
+            if bad_file is not None:
+                raise BadZipFile(f"Повреждённый файл в архиве: {bad_file}")
+            unsafe = [name for name in zfile.namelist() if not _is_safe_zip_member(staging_dir, name)]
+            if unsafe:
+                raise BadZipFile(f"Небезопасные пути в архиве: {unsafe[:3]}")
+            zfile.extractall(staging_dir)
 
-    # Удаление старой папки
-    if os.path.exists(ffmpeg_folder_path):
-        logger.debug(f"unzipping_ffmpeg: Удаление папки {ffmpeg_folder_path}")
-        shutil.rmtree(ffmpeg_folder_path)
+        bin_path = os.path.join(staging_dir, ffmpeg_folder_name, 'bin')
+        sources = {
+            ff_file: os.path.join(bin_path, ff_file)
+            for ff_file in FFMPEG_FILE_LIST
+        }
+        missing = [name for name, path in sources.items() if not os.path.exists(path)]
+        if missing:
+            raise BadZipFile(f"В архиве отсутствуют: {missing}")
 
-    # Распаковка архива
-    logger.debug("unzipping_ffmpeg: Распаковка архива")
-    with ZipFile(archive_path, 'r') as zfile:
-        bad_file = zfile.testzip()
-        if bad_file is not None:
-            raise BadZipFile(f"Повреждённый файл в архиве: {bad_file}")
-        zfile.extractall(utilities_path)
+        for ff_file, src in sources.items():
+            dst = os.path.join(utilities_path, ff_file)
+            logger.debug(f"unzipping_ffmpeg: Замена {ff_file}")
+            os.replace(src, dst)
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
 
-    # Перемещение файлов
-    for ff_file in FFMPEG_FILE_LIST:
-        src = os.path.join(bin_path, ff_file)
-        dst = os.path.join(utilities_path, ff_file)
-        if os.path.exists(src):
-            logger.debug(f"unzipping_ffmpeg: Перемещение {ff_file}")
-            shutil.move(src, dst)
-
-    # Удаление папки распаковки
-    if os.path.exists(ffmpeg_folder_path):
-        shutil.rmtree(ffmpeg_folder_path)
+    # Удаление старой папки распаковки, если она осталась от прошлых версий
+    if os.path.isdir(ffmpeg_folder_path):
+        shutil.rmtree(ffmpeg_folder_path, ignore_errors=True)
 
     logger.debug("unzipping_ffmpeg: Завершено")
 
@@ -144,13 +156,18 @@ def check_needs_update(url: str, save_path: str) -> bool:
 
     try:
         response = urlopen(url, timeout=10)
-        remote_size = _parse_content_length(response)
+        try:
+            remote_size = _parse_content_length(response)
+        finally:
+            response.close()
+
         if remote_size is None:
+            # shortcut: без Content-Length обновляемся всегда; при частых перекачках сверять ETag/версию.
             logger.warning(
                 f"check_needs_update: Content-Length отсутствует для {save_name}, "
-                "считаем что обновление не требуется"
+                "считаем что требуется обновление"
             )
-            return False
+            return True
 
         local_size = os.path.getsize(save_path)
         needs_update = remote_size != local_size
@@ -171,7 +188,8 @@ def check_needs_update(url: str, save_path: str) -> bool:
 def update_utilities(
     upd_url: str,
     work_path: str,
-    progress_callback: Optional[Callable[[int, int], None]] = None
+    progress_callback: Optional[Callable[[int, int], None]] = None,
+    cancel_event: Any = None,
 ) -> bool:
     """
     Обновить/скачать утилиту.
@@ -180,6 +198,7 @@ def update_utilities(
         upd_url: URL для скачивания
         work_path: Рабочая директория
         progress_callback: Функция обратного вызова прогресса
+        cancel_event: threading.Event для отмены загрузки
 
     Returns:
         True если файл был скачан/обновлён
@@ -192,7 +211,10 @@ def update_utilities(
     try:
         # Получаем размер файла на сервере
         response = urlopen(upd_url, timeout=10)
-        download_file_size = _parse_content_length(response)
+        try:
+            download_file_size = _parse_content_length(response)
+        finally:
+            response.close()
         if download_file_size is not None:
             logger.debug(f"update_utilities: Размер на сервере: {download_file_size:,} байт")
         else:
@@ -214,7 +236,6 @@ def update_utilities(
                     return True
 
                 logger.warning("update_utilities: Не удалось распаковать ffmpeg, перекачиваем архив")
-                os.remove(save_path)
 
             # Для yt-dlp — проверяем размер
             elif download_file_size is not None and local_size == download_file_size:
@@ -222,18 +243,14 @@ def update_utilities(
                 return False
             elif download_file_size is not None:
                 logger.debug(f"update_utilities: {save_name} устарел, загружаем заново")
-                os.remove(save_path)
         else:
             logger.debug(f"update_utilities: {save_name} не найден, загружаем")
 
-        # Callback для прогресса
-        def _progress_hook(uploaded, chunk, total):
-            if progress_callback:
-                progress_callback(uploaded * chunk, total)
-
-        # Скачивание
+        # Скачивание с проверкой отмены и атомарной заменой файла
         logger.debug(f"update_utilities: Начало загрузки {save_name}")
-        urlretrieve(upd_url, save_path, reporthook=_progress_hook)
+        if not download_file(upd_url, save_path, progress_callback, cancel_event):
+            logger.warning(f"update_utilities: Загрузка {save_name} отменена")
+            return False
         logger.debug("update_utilities: Загрузка завершена")
 
         # Распаковка ffmpeg
@@ -251,11 +268,6 @@ def update_utilities(
         return False
     except KeyboardInterrupt:
         logger.warning("update_utilities: Прервано пользователем")
-        if os.path.exists(save_path):
-            try:
-                os.remove(save_path)
-            except OSError:
-                pass
         raise
 
 

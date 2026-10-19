@@ -43,6 +43,8 @@ class TestMainWindowDownloadOrchestration:
         window.icon_download = '⭳'
         window.after = Mock()
         window.downloader = None
+        window._cancel_event = Mock()
+        window._cancel_event.is_set.return_value = False
         return window
 
     @patch('ui.main_window.validate_url_for_download')
@@ -56,8 +58,10 @@ class TestMainWindowDownloadOrchestration:
         window.log_viewer.error.assert_called_once()
         assert window.is_downloading is False
 
+    @patch('ui.main_window.threading.Thread')
     @patch('ui.main_window.validate_url_for_download')
-    def test_start_download_skips_duplicate_url(self, mock_validate):
+    @patch('ui.main_window.ctk.CTkFont')
+    def test_start_download_allows_repeating_last_url(self, mock_font, mock_validate, mock_thread):
         mock_validate.return_value = (True, 'https://youtube.com/watch?v=abc', '')
         window = self._make_window_stub()
         window.url_input.get_url.return_value = 'https://youtube.com/watch?v=abc'
@@ -65,8 +69,8 @@ class TestMainWindowDownloadOrchestration:
 
         window._start_download()
 
-        window.log_viewer.warning.assert_called()
-        assert window.is_downloading is False
+        assert window.is_downloading is True
+        mock_thread.assert_called_once()
 
     @patch('ui.main_window.threading.Thread')
     @patch('ui.main_window.validate_url_for_download')
@@ -129,3 +133,26 @@ class TestMainWindowDownloadOrchestration:
 
         assert ready is True
         mock_update.assert_called_once()
+
+    @patch('ui.main_window.get_clipboard_url')
+    def test_startup_clipboard_skips_last_downloaded(self, mock_get_url):
+        mock_get_url.return_value = 'https://youtube.com/watch?v=abc'
+        window = self._make_window_stub()
+        window.config_manager.get.return_value = 'https://youtube.com/watch?v=abc'
+        window._start_download = Mock()
+
+        window._check_clipboard_and_download()
+
+        window._start_download.assert_not_called()
+        window.after.assert_not_called()
+
+    @patch('ui.main_window.get_clipboard_url')
+    def test_startup_clipboard_starts_for_new_url(self, mock_get_url):
+        mock_get_url.return_value = 'https://youtube.com/watch?v=new'
+        window = self._make_window_stub()
+        window.config_manager.get.return_value = 'https://youtube.com/watch?v=old'
+        window._start_download = Mock()
+
+        window._check_clipboard_and_download()
+
+        window.after.assert_called_once_with(800, window._start_download)

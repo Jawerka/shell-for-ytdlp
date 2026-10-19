@@ -20,7 +20,7 @@ from .pipeline import (
     cleanup_download_temp_directory,
     get_download_temp_dir,
 )
-from .utils import find_cookies_txt, is_youtube_url, normalize_path_for_display
+from .utils import find_cookies_txt, is_youtube_url, normalize_path_for_display, strip_youtube_playlist_params
 
 # Логгер для отладки
 logger = logging.getLogger('UI-for-ytdlp.downloader')
@@ -49,7 +49,10 @@ class YouTubeDownloader:
     YTDLP_OPTIONS = [
         '--continue',
         '--retries', '100',
+        # Windows Defender/indexer may briefly hold a completed stream while yt-dlp renames it.
+        '--file-access-retries', '10',
         '--retry-sleep', '5',
+        '--retry-sleep', 'file_access:3',
         '--no-mtime',
         '--windows-filenames',
         '--concurrent-fragments', '8',
@@ -79,6 +82,7 @@ class YouTubeDownloader:
         self.progress_callback = progress_callback
         self._process: Optional[subprocess.Popen] = None
         self._cancelled = False
+        self._range_error = False
         self._logs_buffer: List[str] = []  # Буфер для логирования ошибок
         logger.debug(f"YouTubeDownloader: DOWNLOAD_PATH = {config.get('DOWNLOAD_PATH')}")
         logger.debug(f"YouTubeDownloader: YTDLP_PATH = {config.get('YTDLP_PATH')}")
@@ -95,9 +99,15 @@ class YouTubeDownloader:
         if self.progress_callback:
             self.progress_callback(percent, info)
 
-    def _get_base_ytdlp_options(self, hints: Optional[DownloadHints] = None) -> List[str]:
+    def _get_base_ytdlp_options(
+        self,
+        hints: Optional[DownloadHints] = None,
+        resume: bool = True,
+    ) -> List[str]:
         """Базовые опции yt-dlp с учётом подсказок обработчика."""
         options = list(self.YTDLP_OPTIONS)
+        if not resume:
+            options[options.index('--continue')] = '--no-continue'
         if hints and hints.format_selector:
             try:
                 format_index = options.index('-f')
@@ -111,6 +121,7 @@ class YouTubeDownloader:
         url: str,
         download_path: str,
         hints: Optional[DownloadHints] = None,
+        resume: bool = True,
     ) -> List[str]:
         """
         Построить команду для yt-dlp.
@@ -139,7 +150,7 @@ class YouTubeDownloader:
             ytdlp_path,
             '-P', f'home:{download_path}',
             '-P', f'temp:{temp_path}',
-            *self._get_base_ytdlp_options(hints),
+            *self._get_base_ytdlp_options(hints, resume),
             # Путь к ffmpeg передаётся как путь к директории (согласно документации yt-dlp)
             '--ffmpeg-location', utilities_path,
         ]
@@ -190,8 +201,8 @@ class YouTubeDownloader:
             cmd.append('-o')
             cmd.append('%(playlist)s/%(title)s [%(id)s].%(ext)s')
 
-        # Очистка URL от параметров
-        clean_url = effective_url.split('&')[0]
+        # Убираем только параметры плейлиста YouTube, остальные query сохраняем
+        clean_url = strip_youtube_playlist_params(effective_url)
         logger.debug(f"_build_command: clean_url = {clean_url}")
         cmd.append(clean_url)
 
@@ -273,7 +284,114 @@ class YouTubeDownloader:
         if '[ffmpeg]' in line and 'Deleting' not in line:
             return 'Обработка ffmpeg...'
         return None
+
+    @staticmethod
+    def _parse_file_access_retry(line: str) -> Optional[str]:
+        """Преобразовать повтор yt-dlp из-за блокировки файла в спокойный статус UI."""
+        if not line or 'unable to rename file' not in line.lower():
+            return None
+
+        match = re.search(r'retrying\s*\((\d+)\s*/\s*(\d+)\)', line, re.IGNORECASE)
+        if not match:
+            return None
+        return (
+            'Файл временно занят другой программой. '
+            f'Повторяем автоматически ({match.group(1)}/{match.group(2)})...'
+        )
     
+    @staticmethod
+    def _is_range_error(line: str) -> bool:
+        """Распознать ответ сервера HTTP 416 (несовместимый частичный файл)."""
+        lower = line.lower()
+        return 'http error 416' in lower or ('416' in line and 'range not satisfiable' in lower)
+
+    def _run_process(self, cmd: List[str]) -> Optional[int]:
+        """
+        Запустить yt-dlp и разобрать его вывод.
+
+        Returns:
+            Код возврата или None, если загрузка отменена пользователем
+        """
+        self._range_error = False
+
+        # Используем список аргументов без shell=True для безопасности
+        # Читаем вывод как binary, чтобы корректно обрабатывать русские символы
+        self._process = subprocess.Popen(
+            cmd,
+            shell=False,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+        )
+
+        logger.debug(f"download: Process PID = {self._process.pid}")
+
+        if self._process.stdout:
+            line_count = 0
+            last_percent = 0.0
+            for line in self._process.stdout:
+                if self._cancelled:
+                    logger.warning("download: Отмена пользователем")
+                    _terminate_process_tree(self._process)
+                    self._log("Загрузка отменена пользователем", 'warning')
+                    return None
+
+                # Декодируем binary строку в UTF-8
+                # yt-dlp выводит в OEM кодировке, но большинство символов совместимы
+                try:
+                    line_str = line.decode('utf-8').strip()
+                except UnicodeDecodeError:
+                    try:
+                        line_str = line.decode('cp1251').strip()
+                    except UnicodeDecodeError:
+                        line_str = line.decode('utf-8', errors='replace').strip()
+
+                if not line_str:
+                    continue
+
+                line_count += 1
+
+                if line_count % 10 == 0:
+                    logger.debug(f"download: Строка {line_count}: {line_str[:50]}...")
+
+                if self._is_range_error(line_str):
+                    self._range_error = True
+
+                file_access_status = self._parse_file_access_retry(line_str)
+                if file_access_status:
+                    # Оставляем исходное сообщение для диагностики, но показываем пользователю
+                    # понятный статус вместо англоязычной строки с ERROR.
+                    self._logs_buffer.append(line_str)
+                    self._log(file_access_status)
+                    self._progress(last_percent, file_access_status)
+                    continue
+
+                progress = self._parse_progress(line_str)
+                phase = self._parse_phase_status(line_str)
+                if progress:
+                    percent, info, speed, eta = progress
+                    last_percent = percent
+                    progress_info = info
+                    if speed or eta:
+                        parts = [info]
+                        if speed:
+                            parts.append(f" | {speed}")
+                        if eta:
+                            parts.append(f" | {eta}")
+                        progress_info = "".join(parts)
+                    self._progress(percent, progress_info)
+                elif phase:
+                    self._progress(last_percent, phase)
+                    self._log(line_str)
+                else:
+                    self._log(line_str)
+
+            logger.debug(f"download: Всего строк вывода: {line_count}")
+
+        return_code = self._process.wait()
+        logger.debug(f"download: Return code = {return_code}")
+        return return_code
+
     def download(self, url: str) -> bool:
         """
         Начать загрузку.
@@ -328,112 +446,53 @@ class YouTubeDownloader:
         if hints.log_title:
             self._log(f"Плагин: {hints.log_title}")
 
-        cmd = self._build_command(url, download_path, hints)
-
-        logger.debug(f"download: Команда: {cmd}")
-
         self._log(f"Запуск загрузки: {url}")
         self._log(f"Путь сохранения: {normalize_path_for_display(download_path)}")
 
         logger.debug("download: Запуск subprocess.Popen")
 
         try:
-            # Используем список аргументов без shell=True для безопасности
-            # Создаём процесс с чтением вывода в binary режиме
-            # Это позволяет корректно обрабатывать русские символы
-            self._process = subprocess.Popen(
-                cmd,
-                shell=False,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                # Не используем text=True - читаем как binary
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-            )
+            for attempt in range(2):
+                cmd = self._build_command(url, download_path, hints, resume=attempt == 0)
+                logger.debug(f"download: Команда (попытка {attempt + 1}): {cmd}")
 
-            logger.debug(f"download: Process PID = {self._process.pid}")
+                return_code = self._run_process(cmd)
 
-            if self._process.stdout:
-                line_count = 0
-                last_percent = 0.0
-                for line in self._process.stdout:
-                    if self._cancelled:
-                        logger.warning("download: Отмена пользователем")
-                        _terminate_process_tree(self._process)
-                        self._log("Загрузка отменена пользователем", 'warning')
-                        return False
+                if return_code is None:
+                    return False
 
-                    # Декодируем binary строку в UTF-8
-                    # yt-dlp выводит в OEM кодировке, но большинство символов совместимы
-                    try:
-                        # Пробуем декодировать как UTF-8
-                        line_str = line.decode('utf-8').strip()
-                    except UnicodeDecodeError:
-                        try:
-                            # Если не UTF-8, пробуем cp1251 (Windows Cyrillic)
-                            line_str = line.decode('cp1251').strip()
-                        except UnicodeDecodeError:
-                            # Если всё ещё ошибка, используем replace
-                            line_str = line.decode('utf-8', errors='replace').strip()
+                if return_code == 0:
+                    logger.debug("download: Загрузка успешна")
+                    cleanup_download_temp_directory(download_path)
+                    self._log("Загрузка завершена успешно", 'success')
+                    self._progress(100.0, "Завершено")
+                    return True
 
-                    if not line_str:
-                        continue
+                if self._range_error and attempt == 0 and not self._cancelled:
+                    self._log(
+                        "HTTP 416: сервер не принимает продолжение. "
+                        "Перезапуск загрузки с нуля (без --continue).",
+                        'warning',
+                    )
+                    self._logs_buffer = []
+                    continue
 
-                    line_count += 1
+                break
 
-                    # Логирование каждой 10-й строки для отладки
-                    if line_count % 10 == 0:
-                        logger.debug(f"download: Строка {line_count}: {line_str[:50]}...")
+            # Подробное логирование ошибок
+            logger.error(f"download: Ошибка, return code = {return_code}")
+            self._log(f"yt-dlp завершил с кодом {return_code}", 'error')
 
-                    progress = self._parse_progress(line_str)
-                    phase = self._parse_phase_status(line_str)
-                    if progress:
-                        percent, info, speed, eta = progress
-                        last_percent = percent
-                        # Формируем полную информацию для отображения
-                        progress_info = info
-                        if speed or eta:
-                            parts = [info]
-                            if speed:
-                                parts.append(f" | {speed}")
-                            if eta:
-                                parts.append(f" | {eta}")
-                            progress_info = "".join(parts)
-                        self._progress(percent, progress_info)
-                    elif phase:
-                        self._progress(last_percent, phase)
-                        self._log(line_str)
-                    else:
-                        # Логируем все сообщения от yt-dlp
-                        # Текст уже в UTF-8, дополнительная конвертация не нужна
-                        self._log(line_str)
+            error_lines = [
+                line for line in self._logs_buffer
+                if 'ERROR' in line or 'Error' in line or 'failed' in line.lower() or 'unable' in line.lower()
+            ]
+            if error_lines:
+                logger.error(f"download: Ошибки в выводе: {error_lines[:5]}")
+                for err_line in error_lines[:3]:  # Показываем первые 3 ошибки
+                    self._log(f"Ошибка: {err_line}", 'error')
 
-                logger.debug(f"download: Всего строк вывода: {line_count}")
-
-            return_code = self._process.wait()
-            logger.debug(f"download: Return code = {return_code}")
-
-            if return_code == 0:
-                logger.debug("download: Загрузка успешна")
-                cleanup_download_temp_directory(download_path)
-                self._log("Загрузка завершена успешно", 'success')
-                self._progress(100.0, "Завершено")
-                return True
-            else:
-                # Подробное логирование ошибок
-                logger.error(f"download: Ошибка, return code = {return_code}")
-                self._log(f"yt-dlp завершил с кодом {return_code}", 'error')
-                
-                # Логируем последние ошибки из вывода
-                error_lines = [
-                    line for line in self._logs_buffer 
-                    if 'ERROR' in line or 'Error' in line or 'failed' in line.lower() or 'unable' in line.lower()
-                ]
-                if error_lines:
-                    logger.error(f"download: Ошибки в выводе: {error_lines[:5]}")
-                    for err_line in error_lines[:3]:  # Показываем первые 3 ошибки
-                        self._log(f"Ошибка: {err_line}", 'error')
-                
-                return False
+            return False
 
         except KeyboardInterrupt:
             logger.warning("download: Прервано пользователем (KeyboardInterrupt)")

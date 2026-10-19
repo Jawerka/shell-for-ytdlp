@@ -12,7 +12,8 @@
 import os
 import re
 import socket
-from typing import Any, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
+from urllib.parse import urlsplit, urlunsplit
 from urllib.request import urlopen
 from urllib.error import HTTPError, URLError
 import pyperclip
@@ -151,6 +152,27 @@ def is_youtube_url(url: str) -> bool:
     )
 
 
+def strip_youtube_playlist_params(url: str) -> str:
+    """
+    Убрать только list/index у watch-ссылок YouTube.
+
+    Остальные query-параметры (подписи, токены, формат) сохраняются как есть.
+    Плейлисты без video id (например /playlist?list=...) не трогаем.
+    """
+    if not is_youtube_url(url):
+        return url
+
+    parts = urlsplit(url)
+    query_parts = parts.query.split('&') if parts.query else []
+    keys = [part.split('=', 1)[0] for part in query_parts]
+    is_video = 'v' in keys or (parts.hostname or '').lower() == 'youtu.be'
+    if not is_video:
+        return url
+
+    kept = [part for part in query_parts if part.split('=', 1)[0] not in ('list', 'index')]
+    return urlunsplit(parts._replace(query='&'.join(kept)))
+
+
 def is_supported_video_url(url: str, config: Any = None) -> bool:
     """
     Проверить, является ли URL ссылкой на поддерживаемый видеосервис.
@@ -286,33 +308,82 @@ def get_clipboard_url() -> Optional[str]:
     return None
 
 
-def validate_url_for_ui(text: str) -> Tuple[bool, str]:
-    """
-    Проверить URL для отображения в UI.
-
-    Args:
-        text: Текст для проверки
-
-    Returns:
-        Кортеж (валиден, сообщение)
-    """
+def validate_http_url(text: str) -> Optional[str]:
+    """Проверить синтаксис http(s) URL без сети. Вернуть текст ошибки или None."""
     if not text:
-        return False, "Введите URL"
+        return "Введите URL"
     text = text.strip()
     if not text.startswith(('http://', 'https://')):
-        return False, "URL должен начинаться с http:// или https://"
+        return "URL должен начинаться с http:// или https://"
     try:
-        response = urlopen(text, timeout=DEFAULT_TIMEOUT)
-        response.close()
-        return True, "Ссылка доступна"
-    except HTTPError as err:
-        return True, f"Сервер ответил: {err.code} (yt-dlp попробует скачать)"
-    except socket.timeout:
-        return False, "Превышено время ожидания (таймаут)"
-    except URLError as err:
-        return False, f"Ошибка сети: {err.reason}"
+        parts = urlsplit(text)
+        hostname = parts.hostname
+        parts.port  # ValueError при нечисловом или недопустимом порте
     except ValueError:
-        return False, "Неверный формат URL"
+        return "Неверный формат URL"
+    if not hostname:
+        return "URL должен содержать хост"
+    return None
+
+
+def validate_url_for_ui(text: str) -> Tuple[bool, str]:
+    """
+    Проверить URL для отображения в UI (без сетевого запроса).
+
+    Сетевую доступность проверяет yt-dlp во время загрузки, чтобы не
+    блокировать поток Tk.
+    """
+    error = validate_http_url(text)
+    if error:
+        return False, error
+    return True, "URL принят"
+
+
+def download_file(
+    url: str,
+    save_path: str,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
+    cancel_event: Any = None,
+) -> bool:
+    """
+    Потоково скачать файл во временный `.part` и атомарно заменить целевой.
+
+    Returns:
+        True при успехе, False при отмене. Сетевые ошибки пробрасываются.
+    """
+    part_path = save_path + '.part'
+    response = urlopen(url, timeout=DEFAULT_TIMEOUT)
+    try:
+        header = response.getheader('Content-Length')
+        total = int(str(header).strip()) if header is not None else None
+        if total == 0:
+            raise OSError("Пустой ответ: сервер сообщил Content-Length: 0")
+
+        with open(part_path, 'wb') as target:
+            downloaded = 0
+            while True:
+                if cancel_event is not None and cancel_event.is_set():
+                    return False
+                chunk = response.read(256 * 1024)
+                if not chunk:
+                    break
+                target.write(chunk)
+                downloaded += len(chunk)
+                if progress_callback:
+                    progress_callback(downloaded, total or 0)
+
+        if total is not None and downloaded != total:
+            raise OSError(f"Неполная загрузка: получено {downloaded} из {total} байт")
+
+        os.replace(part_path, save_path)
+        return True
+    finally:
+        response.close()
+        if os.path.exists(part_path):
+            try:
+                os.remove(part_path)
+            except OSError:
+                pass
 
 
 def find_cookies_txt(start_dir: str) -> Optional[str]:

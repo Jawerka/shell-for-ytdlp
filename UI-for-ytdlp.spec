@@ -7,7 +7,7 @@ PyInstaller spec-файл для UI-for-ytdlp.
     pyinstaller --clean --noconfirm UI-for-ytdlp.spec
 
 Результат:
-    dist/UI-for-ytdlp/UI-for-ytdlp.exe
+    dist/UI-for-ytdlp.exe (onefile)
 """
 
 import os
@@ -126,8 +126,9 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.datas,
     [],
-    exclude_binaries=True,
     name=app_name,
     debug=False,
     bootloader_ignore_signals=False,
@@ -143,15 +144,4 @@ exe = EXE(
     entitlements_file=None,
     icon=icon_path,
     version=version_info,
-)
-
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    strip=False,
-    upx=False,
-    upx_exclude=[],
-    name=app_name,
 )
