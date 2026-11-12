@@ -15,10 +15,12 @@ from typing import Callable, Optional, Tuple, List
 from .config import ConfigManager
 from .download_handlers import DownloadHints, HandlerError, resolve_download_hints
 from .pipeline import (
+    VIDEO_QUALITY_DEFAULT,
     ensure_download_directory,
     ensure_download_temp_directory,
     cleanup_download_temp_directory,
     get_download_temp_dir,
+    ytdlp_format_selector_for_quality,
 )
 from .utils import find_cookies_txt, is_youtube_url, normalize_path_for_display, strip_youtube_playlist_params
 
@@ -108,12 +110,15 @@ class YouTubeDownloader:
         options = list(self.YTDLP_OPTIONS)
         if not resume:
             options[options.index('--continue')] = '--no-continue'
+        quality = self.config.get('VIDEO_QUALITY', VIDEO_QUALITY_DEFAULT)
+        format_selector = ytdlp_format_selector_for_quality(quality)
         if hints and hints.format_selector:
-            try:
-                format_index = options.index('-f')
-                options[format_index + 1] = hints.format_selector
-            except ValueError:
-                options.extend(['-f', hints.format_selector])
+            format_selector = hints.format_selector
+        try:
+            format_index = options.index('-f')
+            options[format_index + 1] = format_selector
+        except ValueError:
+            options.extend(['-f', format_selector])
         return options
 
     def _build_command(

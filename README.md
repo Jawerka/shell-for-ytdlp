@@ -5,7 +5,7 @@
 
 **Modern GUI for yt-dlp built with customtkinter.**
 
-![Version](https://img.shields.io/badge/version-0.3.4-blue)
+![Version](https://img.shields.io/badge/version-0.3.5-blue)
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -225,6 +225,12 @@ pytest tests/ -v -m integration
 ---
 
 ## Changelog
+
+### v0.3.5 (2026-11-12)
+- В настройках выбор качества загрузки: 480p, 720p, 1080p или максимально доступное
+- Плагины (GoodGame VOD и др.) по-прежнему задают свой `-f` и перекрывают пресет
+- Окно настроек подгоняется под размер экрана с учётом DPI
+- Release notes: [.github/release-notes/v0.3.5.md](.github/release-notes/v0.3.5.md)
 
 ### v0.3.4 (2026-10-19)
 - Повтор загрузки после HTTP 416 без `--continue` (с нуля, один раз)

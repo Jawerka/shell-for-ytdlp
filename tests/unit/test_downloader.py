@@ -157,8 +157,45 @@ class TestBuildCommand:
             assert '--cookies' in cmd
             assert '/test/cookies.txt' in cmd
 
+    def test_build_command_uses_quality_preset(self, build_downloader):
+        """Пресет VIDEO_QUALITY подставляется в -f, если нет hints."""
+        build_downloader.config.get.side_effect = lambda key, default=None: {
+            'DOWNLOAD_PATH': '/test/path',
+            'YTDLP_PATH': '/test/yt-dlp.exe',
+            'UTILITIES_PATH': '/test/utilities',
+            'COOKIES_PATH': '',
+            'SPONSORBLOCK_REMOVE_LIST': [],
+            'VIDEO_QUALITY': '720',
+        }.get(key, default)
+
+        cmd = build_downloader._build_command('https://youtube.com/watch?v=test', '/output')
+        format_value = cmd[cmd.index('-f') + 1]
+
+        assert 'bestvideo[height<=720]+bestaudio' in format_value
+
+    def test_build_command_quality_1080(self, build_downloader):
+        build_downloader.config.get.side_effect = lambda key, default=None: {
+            'DOWNLOAD_PATH': '/test/path',
+            'YTDLP_PATH': '/test/yt-dlp.exe',
+            'UTILITIES_PATH': '/test/utilities',
+            'COOKIES_PATH': '',
+            'SPONSORBLOCK_REMOVE_LIST': [],
+            'VIDEO_QUALITY': '1080',
+        }.get(key, default)
+
+        cmd = build_downloader._build_command('https://youtube.com/watch?v=test', '/output')
+        assert 'height<=1080' in cmd[cmd.index('-f') + 1]
+
     def test_build_command_with_download_hints(self, build_downloader):
         """Тест команды с подсказками от плагина GoodGame VOD."""
+        build_downloader.config.get.side_effect = lambda key, default=None: {
+            'DOWNLOAD_PATH': '/test/path',
+            'YTDLP_PATH': '/test/yt-dlp.exe',
+            'UTILITIES_PATH': '/test/utilities',
+            'COOKIES_PATH': '',
+            'SPONSORBLOCK_REMOVE_LIST': ['sponsor', 'selfpromo'],
+            'VIDEO_QUALITY': '720',
+        }.get(key, default)
         hints = DownloadHints(
             url='https://storage3.goodgame.ru/hls_vod/test/index.m3u8',
             format_selector='0',
@@ -172,8 +209,9 @@ class TestBuildCommand:
             hints,
         )
 
-        assert '0' in cmd
+        assert cmd[cmd.index('-f') + 1] == '0'
         assert 'bestvideo+bestaudio/best' not in cmd
+        assert not any('height<=' in str(arg) for arg in cmd)
         assert '--referer' in cmd
         assert 'https://goodgame.ru/' in cmd
         assert '--merge-output-format' in cmd

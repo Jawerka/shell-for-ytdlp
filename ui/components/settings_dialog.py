@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Диалог расширенных настроек (cookies + SponsorBlock).
+Диалог расширенных настроек (качество, cookies, SponsorBlock).
 """
 
-from typing import Callable, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 import sys
 import os
 import logging
@@ -11,6 +11,7 @@ import logging
 import customtkinter as ctk
 from tkinter import filedialog
 
+from core.pipeline import VIDEO_QUALITY_CHOICES, VIDEO_QUALITY_DEFAULT
 from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
 from core.utils import find_cookies_txt, normalize_path_for_display
@@ -32,6 +33,20 @@ SPONSORBLOCK_CATEGORIES = {
 }
 
 
+def _fit_dialog_size(
+    screen_w: int,
+    screen_h: int,
+    scaling: float,
+    preferred: Tuple[int, int] = (620, 780),
+) -> Tuple[int, int]:
+    """Логический размер окна: CTk умножит его на scaling, поэтому экран делим."""
+    scale = max(scaling, 0.4)
+    # Запас в физических пикселях: заголовок окна и панель задач.
+    width = min(preferred[0], max(1, int((screen_w - 80) / scale)))
+    height = min(preferred[1], max(1, int((screen_h - 120) / scale)))
+    return width, height
+
+
 class SettingsDialog(ctk.CTkToplevel):
     def __init__(
         self,
@@ -39,7 +54,7 @@ class SettingsDialog(ctk.CTkToplevel):
         cookies_path: Optional[str],
         sponsorblock_categories: List[str],
         clipboard_monitoring: bool = False,
-        on_save: Callable[[Optional[str], List[str], bool, bool], None] = None,
+        on_save: Callable[[Optional[str], List[str], bool, bool, str], None] = None,
         config_manager=None
     ):
         self.parent = parent
@@ -57,8 +72,6 @@ class SettingsDialog(ctk.CTkToplevel):
         
         # Восстанавливаем позицию и размер из настроек
         self._restore_window_position()
-        
-        self.minsize(620, 700)
         self.transient(parent)
         self.grab_set()
         self.configure(fg_color=COLOR_THEME["bg_primary"])
@@ -76,50 +89,30 @@ class SettingsDialog(ctk.CTkToplevel):
             self._create_ui()
 
     def _restore_window_position(self) -> None:
-        """Восстановить позицию окна из настроек (размеры всегда минимальные)."""
-        if not self.config_manager:
-            return
-
-        # Стандартные размеры по умолчанию (минимальные)
-        default_width = 620
-        default_height = 700
-
-        # Восстанавливаем ТОЛЬКО позицию (размеры всегда минимальные)
-        pos_x = self.config_manager.get('SETTINGS_WINDOW_POS_X')
-        pos_y = self.config_manager.get('SETTINGS_WINDOW_POS_Y')
-
-        # Обновляем окно чтобы получить корректные размеры
-        self.update()
-
-        # Получаем размеры экрана
+        """Восстановить позицию и ограничить окно размерами экрана."""
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
+        scale = ctk.ScalingTracker.get_window_scaling(self)
+        width, height = _fit_dialog_size(screen_w, screen_h, scale)
+        self.minsize(width, height)
 
-        # Используем минимальные размеры
-        width = default_width
-        height = default_height
+        # geometry() масштабирует только размеры, x/y остаются физическими пикселями.
+        window_w = round(width * scale)
+        window_h = round(height * scale)
 
-        if pos_x is not None and pos_y is not None:
-            # Проверяем что позиция в пределах экрана (с запасом)
-            if pos_x < -100 or pos_x > screen_w - 100 or pos_y < -100 or pos_y > screen_h - 100:
-                # Если окно ушло за пределы - центрируем над родителем
-                parent_x = self.parent.winfo_x()
-                parent_y = self.parent.winfo_y()
-                parent_width = self.parent.winfo_width()
-                parent_height = self.parent.winfo_height()
-                pos_x = parent_x + (parent_width - width) // 2
-                pos_y = parent_y + (parent_height - height) // 2
-            # Иначе используем сохранённую позицию
-        else:
-            # Позиционируем по центру родительского окна
+        pos_x = self.config_manager.get('SETTINGS_WINDOW_POS_X') if self.config_manager else None
+        pos_y = self.config_manager.get('SETTINGS_WINDOW_POS_Y') if self.config_manager else None
+        if pos_x is None or pos_y is None:
             parent_x = self.parent.winfo_x()
             parent_y = self.parent.winfo_y()
             parent_width = self.parent.winfo_width()
             parent_height = self.parent.winfo_height()
-            pos_x = parent_x + (parent_width - width) // 2
-            pos_y = parent_y + (parent_height - height) // 2
+            pos_x = parent_x + (parent_width - window_w) // 2
+            pos_y = parent_y + (parent_height - window_h) // 2
 
-        # Устанавливаем финальную позицию и размер
+        # Сохранённая позиция может оказаться за пределами экрана после смены монитора.
+        pos_x = min(max(0, pos_x), max(0, screen_w - window_w))
+        pos_y = min(max(0, pos_y), max(0, screen_h - window_h))
         self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
 
     def _save_window_position(self) -> None:
@@ -167,8 +160,8 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         card.pack(fill="both", expand=True)
 
-        # Контент без прокрутки (занимает всё место внутри card)
-        content_frame = ctk.CTkFrame(
+        # На невысоких экранах контент прокручивается, а кнопки остаются доступны.
+        content_frame = ctk.CTkScrollableFrame(
             card,
             fg_color="transparent",
             corner_radius=COLOR_THEME["radius_md"]
@@ -278,6 +271,67 @@ class SettingsDialog(ctk.CTkToplevel):
         # === Разделитель ===
         separator = ctk.CTkFrame(content_frame, height=2, fg_color=COLOR_THEME["border"])
         separator.pack(fill="x", pady=Spacing.LG)
+
+        # === Секция: Качество видео ===
+        quality_section = ctk.CTkFrame(content_frame, fg_color="transparent")
+        quality_section.pack(fill="x", pady=(0, Spacing.LG))
+
+        quality_title = ctk.CTkLabel(
+            quality_section,
+            text="Качество видео",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=COLOR_THEME["text_primary"],
+            anchor="w"
+        )
+        quality_title.pack(fill="x", pady=(0, Spacing.SM))
+
+        quality_desc = ctk.CTkLabel(
+            quality_section,
+            text="Верхняя граница разрешения. Если его нет — ближайшее ниже.",
+            font=ctk.CTkFont(size=12),
+            text_color=COLOR_THEME["text_muted"],
+            wraplength=560,
+            justify="left",
+            anchor="w"
+        )
+        quality_desc.pack(fill="x", pady=(0, Spacing.SM))
+
+        self._quality_labels: Dict[str, str] = {
+            value: label for value, label in VIDEO_QUALITY_CHOICES
+        }
+        self._quality_values: Dict[str, str] = {
+            label: value for value, label in VIDEO_QUALITY_CHOICES
+        }
+        quality_from_config = VIDEO_QUALITY_DEFAULT
+        if self.config_manager:
+            quality_from_config = self.config_manager.get(
+                'VIDEO_QUALITY', VIDEO_QUALITY_DEFAULT
+            )
+        if not isinstance(quality_from_config, str):
+            quality_from_config = VIDEO_QUALITY_DEFAULT
+        selected_label = self._quality_labels.get(
+            quality_from_config, self._quality_labels[VIDEO_QUALITY_DEFAULT]
+        )
+        self.quality_var = ctk.StringVar(value=selected_label)
+
+        quality_button = ctk.CTkSegmentedButton(
+            quality_section,
+            values=[label for _value, label in VIDEO_QUALITY_CHOICES],
+            variable=self.quality_var,
+            font=ctk.CTkFont(size=12),
+            fg_color=COLOR_THEME["bg_primary"],
+            selected_color=COLOR_THEME["primary"],
+            selected_hover_color=COLOR_THEME["primary_hover"],
+            unselected_color=COLOR_THEME["bg_card"],
+            unselected_hover_color=COLOR_THEME["accent"],
+            text_color=COLOR_THEME["text_primary"],
+            corner_radius=COLOR_THEME["radius_md"],
+        )
+        quality_button.pack(fill="x")
+
+        # === Разделитель ===
+        separator_quality = ctk.CTkFrame(content_frame, height=2, fg_color=COLOR_THEME["border"])
+        separator_quality.pack(fill="x", pady=Spacing.LG)
 
         # === Секция 2: SponsorBlock ===
         sponsorblock_section = ctk.CTkFrame(content_frame, fg_color="transparent")
@@ -502,12 +556,16 @@ class SettingsDialog(ctk.CTkToplevel):
         # Sound notifications
         sound_enabled = self.sound_enabled_var.get()
 
+        quality_label = self.quality_var.get()
+        video_quality = self._quality_values.get(quality_label, VIDEO_QUALITY_DEFAULT)
+
         if self.on_save_callback:
             self.on_save_callback(
                 cookies_path, 
                 selected_categories, 
                 clipboard_monitoring,
-                sound_enabled
+                sound_enabled,
+                video_quality,
             )
 
         self.destroy()

@@ -96,11 +96,13 @@ DEFAULT_CONFIG = {
     'SETTINGS_WINDOW_POS_X': None,
     'SETTINGS_WINDOW_POS_Y': None,
     'SETTINGS_WINDOW_WIDTH': 620,
-    'SETTINGS_WINDOW_HEIGHT': 700,
+    'SETTINGS_WINDOW_HEIGHT': 780,
     # Последний загруженный URL (для предотвращения повторной загрузки)
     'LAST_DOWNLOADED_URL': '',
     # Плагин резолвинга VOD GoodGame.ru (API → m3u8 → yt-dlp)
     'ENABLE_GOODGAME_VOD_HANDLER': True,
+    # Пресет качества: max | 1080 | 720 | 480
+    'VIDEO_QUALITY': 'max',
 }
 
 
@@ -187,6 +189,8 @@ class ConfigManager:
             result['ENABLE_SOUND_NOTIFICATIONS'] = True
         if 'ENABLE_GOODGAME_VOD_HANDLER' not in result:
             result['ENABLE_GOODGAME_VOD_HANDLER'] = True
+        if 'VIDEO_QUALITY' not in result:
+            result['VIDEO_QUALITY'] = 'max'
 
         return result
     

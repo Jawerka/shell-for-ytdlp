@@ -21,6 +21,29 @@ logger = logging.getLogger('UI-for-ytdlp.pipeline')
 # Папка для .part и прочих промежуточных файлов yt-dlp (рядом с DOWNLOAD_PATH).
 DOWNLOAD_TEMP_DIR_NAME = '_UI-for-ytdlp-temp'
 
+# Пресеты качества: верхняя граница высоты кадра для yt-dlp -f.
+VIDEO_QUALITY_MAX = 'max'
+VIDEO_QUALITY_DEFAULT = VIDEO_QUALITY_MAX
+YTDLP_FORMAT_BEST = 'bestvideo+bestaudio/best'
+_VIDEO_QUALITY_HEIGHTS = ('1080', '720', '480')
+VIDEO_QUALITY_CHOICES = (
+    ('480', '480p'),
+    ('720', '720p'),
+    ('1080', '1080p'),
+    (VIDEO_QUALITY_MAX, 'Максимально доступный'),
+)
+
+
+def ytdlp_format_selector_for_quality(quality: str) -> str:
+    """Вернуть строку -f для пресета VIDEO_QUALITY (неизвестный ключ → максимум)."""
+    value = quality.strip().lower() if isinstance(quality, str) else ''
+    if value in _VIDEO_QUALITY_HEIGHTS:
+        return (
+            f'bestvideo[height<={value}]+bestaudio/'
+            f'best[height<={value}]/best'
+        )
+    return YTDLP_FORMAT_BEST
+
 # Результат валидации URL: (ok, url_or_message, warning_message_or_empty)
 ValidationResult = Tuple[bool, str, str]
 

@@ -14,6 +14,7 @@ if project_root not in sys.path:
 from core.pipeline import (
     UtilitySeverity,
     DOWNLOAD_TEMP_DIR_NAME,
+    YTDLP_FORMAT_BEST,
     check_ytdlp_ready,
     classify_utility_update_result,
     cleanup_download_temp_directory,
@@ -22,6 +23,7 @@ from core.pipeline import (
     get_download_temp_dir,
     get_ytdlp_download_url,
     validate_url_for_download,
+    ytdlp_format_selector_for_quality,
 )
 
 
@@ -148,3 +150,26 @@ class TestGetYtdlpDownloadUrl:
         config = Mock()
         config.get.return_value = ['https://example.com/ffmpeg.zip']
         assert get_ytdlp_download_url(config) is None
+
+
+class TestYtdlpFormatSelectorForQuality:
+    def test_max_matches_current_default(self):
+        assert ytdlp_format_selector_for_quality('max') == YTDLP_FORMAT_BEST
+        assert ytdlp_format_selector_for_quality('max') == 'bestvideo+bestaudio/best'
+
+    @pytest.mark.parametrize(
+        'quality,height',
+        [('1080', '1080'), ('720', '720'), ('480', '480')],
+    )
+    def test_height_presets(self, quality, height):
+        selector = ytdlp_format_selector_for_quality(quality)
+        assert f'bestvideo[height<={height}]+bestaudio' in selector
+        assert f'best[height<={height}]' in selector
+        assert selector.endswith('/best')
+
+    @pytest.mark.parametrize('quality', [None, '', '4k', 'best', 'MAX'])
+    def test_unknown_falls_back_to_max(self, quality):
+        assert ytdlp_format_selector_for_quality(quality) == YTDLP_FORMAT_BEST
+
+    def test_strips_and_accepts_height(self):
+        assert 'height<=720' in ytdlp_format_selector_for_quality(' 720 ')

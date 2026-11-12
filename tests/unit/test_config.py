@@ -189,6 +189,20 @@ class TestConfigManagerMergeWithDefaults:
 
         assert result['ENABLE_GOODGAME_VOD_HANDLER'] is False
 
+    def test_merge_adds_video_quality_default(self):
+        """Старый config без VIDEO_QUALITY получает max."""
+        config = ConfigManager.__new__(ConfigManager)
+        result = config._merge_with_defaults({})
+
+        assert result['VIDEO_QUALITY'] == 'max'
+
+    def test_merge_preserves_video_quality(self):
+        """Пользовательский пресет качества не затирается."""
+        config = ConfigManager.__new__(ConfigManager)
+        result = config._merge_with_defaults({'VIDEO_QUALITY': '720'})
+
+        assert result['VIDEO_QUALITY'] == '720'
+
 
 class TestConfigManagerSave:
     """Тесты сохранения конфигурации."""

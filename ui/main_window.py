@@ -31,6 +31,8 @@ from core.logger import GUILogger
 from core.downloader import YouTubeDownloader
 from core.utils import get_clipboard_url, validate_url_for_ui, find_cookies_in_utilities, normalize_path_for_display
 from core.pipeline import (
+    VIDEO_QUALITY_CHOICES,
+    VIDEO_QUALITY_DEFAULT,
     validate_url_for_download,
     check_ytdlp_ready,
     get_ytdlp_download_url,
@@ -493,7 +495,7 @@ class MainWindow(ctk.CTk):
             self.log_viewer.success(f"Папка загрузки: {normalize_path_for_display(folder)}")
     
     def _open_settings(self) -> None:
-        """Открыть объединённые настройки (cookies + SponsorBlock)."""
+        """Открыть объединённые настройки."""
         current_cookies_path = self.config_manager.get('COOKIES_PATH', '')
         current_categories = self.config_manager.get('SPONSORBLOCK_REMOVE_LIST', ['sponsor', 'selfpromo'])
 
@@ -501,7 +503,8 @@ class MainWindow(ctk.CTk):
             cookies_path: Optional[str], 
             categories: List[str], 
             clipboard_monitoring: bool,
-            sound_enabled: bool
+            sound_enabled: bool,
+            video_quality: str,
         ):
             # Сохранение cookies path
             self.config_manager.set('COOKIES_PATH', cookies_path if cookies_path else '')
@@ -530,6 +533,8 @@ class MainWindow(ctk.CTk):
 
             # Сохранение настройки звуковых уведомлений
             self.config_manager.set('ENABLE_SOUND_NOTIFICATIONS', sound_enabled)
+            quality = video_quality or VIDEO_QUALITY_DEFAULT
+            self.config_manager.set('VIDEO_QUALITY', quality)
             self.config_manager.save()
 
             # Запуск или остановка мониторинга
@@ -546,6 +551,10 @@ class MainWindow(ctk.CTk):
                 self.log_viewer.info("Звуковые уведомления включены")
             else:
                 self.log_viewer.info("Звуковые уведомления отключены")
+
+            quality_labels = {value: label for value, label in VIDEO_QUALITY_CHOICES}
+            quality_label = quality_labels.get(quality, quality)
+            self.log_viewer.info(f"Качество: {quality_label}")
 
         clipboard_monitoring_enabled = self.config_manager.get('CLIPBOARD_MONITORING', False)
         dialog = SettingsDialog(
