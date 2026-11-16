@@ -16,11 +16,14 @@ from .config import ConfigManager
 from .download_handlers import DownloadHints, HandlerError, resolve_download_hints
 from .pipeline import (
     VIDEO_QUALITY_DEFAULT,
+    OUTPUT_CONTAINER_DEFAULT,
+    normalize_output_container,
     ensure_download_directory,
     ensure_download_temp_directory,
     cleanup_download_temp_directory,
     get_download_temp_dir,
-    ytdlp_format_selector_for_quality,
+    ytdlp_format_selector_for_container,
+    ytdlp_container_options,
 )
 from .utils import find_cookies_txt, is_youtube_url, normalize_path_for_display, strip_youtube_playlist_params
 
@@ -58,6 +61,8 @@ class YouTubeDownloader:
         '--no-mtime',
         '--windows-filenames',
         '--concurrent-fragments', '8',
+        # Единая кодировка вывода, в том числе без консоли Windows.
+        '--encoding', 'utf-8',
         # Выводить прогресс с новой строки (вместо \r)
         '--newline',
         # Лучшее качество видео и аудио
@@ -111,9 +116,10 @@ class YouTubeDownloader:
         if not resume:
             options[options.index('--continue')] = '--no-continue'
         quality = self.config.get('VIDEO_QUALITY', VIDEO_QUALITY_DEFAULT)
-        format_selector = ytdlp_format_selector_for_quality(quality)
-        if hints and hints.format_selector:
-            format_selector = hints.format_selector
+        container = self.config.get('OUTPUT_CONTAINER', OUTPUT_CONTAINER_DEFAULT)
+        format_selector = ytdlp_format_selector_for_container(
+            quality, container, hints.format_selector if hints else None,
+        )
         try:
             format_index = options.index('-f')
             options[format_index + 1] = format_selector
@@ -196,7 +202,11 @@ class YouTubeDownloader:
         if hints and hints.referer:
             cmd.extend(['--referer', hints.referer])
 
-        if hints and hints.merge_output_format:
+        container = normalize_output_container(
+            self.config.get('OUTPUT_CONTAINER', OUTPUT_CONTAINER_DEFAULT)
+        )
+        cmd.extend(ytdlp_container_options(container))
+        if container == 'auto' and hints and hints.merge_output_format:
             cmd.extend(['--merge-output-format', hints.merge_output_format])
 
         if hints and hints.output_template:
@@ -286,6 +296,10 @@ class YouTubeDownloader:
             return 'Слияние потоков (ffmpeg)...'
         if '[SponsorBlock]' in line:
             return 'SponsorBlock (ffmpeg)...'
+        if '[VideoRemuxer]' in line and 'Not remuxing' not in line:
+            return 'Перепаковка контейнера (ffmpeg)...'
+        if '[FixupM3u8]' in line:
+            return 'Обработка ffmpeg...'
         if '[ffmpeg]' in line and 'Deleting' not in line:
             return 'Обработка ffmpeg...'
         return None
@@ -321,23 +335,31 @@ class YouTubeDownloader:
 
         # Используем список аргументов без shell=True для безопасности
         # Читаем вывод как binary, чтобы корректно обрабатывать русские символы
-        self._process = subprocess.Popen(
+        process = subprocess.Popen(
             cmd,
             shell=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
+        self._process = process
 
-        logger.debug(f"download: Process PID = {self._process.pid}")
+        logger.debug(f"download: Process PID = {process.pid}")
 
-        if self._process.stdout:
+        if self._cancelled:
+            _terminate_process_tree(process)
+            process.wait()
+            self._log("Загрузка отменена пользователем", 'warning')
+            return None
+
+        if process.stdout:
             line_count = 0
             last_percent = 0.0
-            for line in self._process.stdout:
+            for line in process.stdout:
                 if self._cancelled:
                     logger.warning("download: Отмена пользователем")
-                    _terminate_process_tree(self._process)
+                    _terminate_process_tree(process)
+                    process.wait()
                     self._log("Загрузка отменена пользователем", 'warning')
                     return None
 
@@ -393,7 +415,11 @@ class YouTubeDownloader:
 
             logger.debug(f"download: Всего строк вывода: {line_count}")
 
-        return_code = self._process.wait()
+        # cancel() может очистить self._process, пока поток читает stdout/ждёт EOF.
+        return_code = process.wait()
+        if self._cancelled:
+            self._log("Загрузка отменена пользователем", 'warning')
+            return None
         logger.debug(f"download: Return code = {return_code}")
         return return_code
 
@@ -496,6 +522,13 @@ class YouTubeDownloader:
                 logger.error(f"download: Ошибки в выводе: {error_lines[:5]}")
                 for err_line in error_lines[:3]:  # Показываем первые 3 ошибки
                     self._log(f"Ошибка: {err_line}", 'error')
+
+            if any('requested format is not available' in line.lower() for line in error_lines):
+                self._log(
+                    'Нет дорожек для выбранного формата и качества. '
+                    'Попробуйте контейнер «Авто» или MKV и другое качество в настройках.',
+                    'error',
+                )
 
             return False
 

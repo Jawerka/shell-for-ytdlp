@@ -47,6 +47,50 @@ class TestMainWindowDownloadOrchestration:
         window._cancel_event.is_set.return_value = False
         return window
 
+    @pytest.mark.parametrize('container', ['auto', 'mp4', 'webm', 'mkv'])
+    @pytest.mark.parametrize('outcome', ['success', 'error', 'exception', 'cancel'])
+    @patch('ui.main_window.send_download_complete')
+    @patch('ui.main_window.send_download_error')
+    @patch('ui.main_window.check_ytdlp_ready', return_value=(True, ''))
+    @patch('ui.main_window.ctk.CTkFont')
+    def test_worker_restores_ui_for_every_mode(self, font, ready, error_notice,
+                                             success_notice, container, outcome):
+        window = self._make_window_stub()
+        window.is_downloading = True
+        window.config_manager.get.side_effect = lambda key, default=None: {
+            'OUTPUT_CONTAINER': container,
+        }.get(key, default)
+        window._update_utilities = Mock()
+
+        def download(url):
+            if outcome == 'exception':
+                raise OSError('test failure')
+            if outcome == 'cancel':
+                window._cancel_event.is_set.return_value = True
+            return outcome == 'success'
+
+        window._download_thread = Mock(side_effect=download)
+        window._update_and_download('https://youtube.com/watch?v=abc')
+        # UI updates must be queued, and only execute here on the Tk thread.
+        assert window.is_downloading
+        for call in window.after.call_args_list:
+            call.args[1]()
+        assert not window.is_downloading
+        assert window.downloader is None
+        window.download_button.configure.assert_called_with(
+            state='normal', text=window.icon_download, font=font.return_value)
+        window.clipboard_monitor.resume.assert_called_once()
+        if outcome == 'success':
+            window.config_manager.set.assert_called_once_with(
+                'LAST_DOWNLOADED_URL', 'https://youtube.com/watch?v=abc')
+            success_notice.assert_called_once()
+        else:
+            window.config_manager.set.assert_not_called()
+            success_notice.assert_not_called()
+        if outcome == 'cancel':
+            error_notice.assert_not_called()
+            window.log_viewer.error.assert_not_called()
+
     @patch('ui.main_window.validate_url_for_download')
     def test_start_download_rejects_invalid_url(self, mock_validate):
         mock_validate.return_value = (False, 'Введите URL', '')

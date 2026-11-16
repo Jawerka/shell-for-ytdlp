@@ -6,6 +6,7 @@
 import os
 import sys
 import subprocess
+import json
 import pytest
 
 # Добавляем корень проекта
@@ -45,17 +46,28 @@ class TestEncoding:
         assert result.returncode == 0, f"yt-dlp --version failed: {result.stderr}"
         assert len(result.stdout.strip()) > 0, "yt-dlp вернул пустую версию"
 
-    def test_ytdlp_encoding_utf8(self):
+    @pytest.fixture
+    def info_file(self, tmp_path):
+        """Unicode fixture avoids testing encoding through an unreliable network."""
+        path = tmp_path / 'video.info.json'
+        path.write_text(json.dumps({
+            'id': 'unicode', 'title': 'Проверка кириллицы — видео',
+            'extractor': 'generic', 'url': 'https://example.invalid/video.mp4',
+            'ext': 'mp4', 'vcodec': 'avc1.640028', 'acodec': 'mp4a.40.2',
+        }, ensure_ascii=False), encoding='utf-8')
+        return path
+
+    def test_ytdlp_encoding_utf8(self, info_file):
         """Тест кодировки UTF-8 с errors='replace'."""
         ytdlp_path = os.path.join(project_root, 'utilities', 'yt-dlp.exe')
         
-        # Используем стабильное видео для теста
         cmd = [
             ytdlp_path,
+            '--ignore-config', '--no-check-formats',
+            '--encoding', 'utf-8',
             '--dump-json',
             '--no-download',
-            '--socket-timeout', '5',
-            'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+            '--load-info-json', str(info_file),
         ]
         
         result = subprocess.run(
@@ -68,32 +80,21 @@ class TestEncoding:
             timeout=30
         )
         
-        # Проверяем что вывод не пустой (видео может быть недоступно, но JSON должен быть)
-        if result.returncode != 0:
-            # Если ошибка сети - пропускаем тест
-            if 'ERROR' in result.stderr and 'unavailable' in result.stderr:
-                pytest.skip(f"Видео недоступно: {result.stderr[:100]}")
-        
-        # Проверяем что это валидный JSON если успех
-        if result.returncode == 0 and len(result.stdout) > 0:
-            import json
-            try:
-                data = json.loads(result.stdout)
-                assert 'title' in data, "JSON не содержит поле 'title'"
-            except json.JSONDecodeError as e:
-                pytest.fail(f"yt-dlp вернул невалидный JSON: {e}\nSTDOUT: {result.stdout[:500]}")
+        assert result.returncode == 0, result.stderr
+        data = json.loads(result.stdout)
+        assert data['title'] == 'Проверка кириллицы — видео'
 
-    def test_ytdlp_encoding_cyrillic(self):
+    def test_ytdlp_encoding_cyrillic(self, info_file):
         """Тест обработки кириллицы в названии видео."""
         ytdlp_path = os.path.join(project_root, 'utilities', 'yt-dlp.exe')
         
-        # Видео с русской локализацией
         cmd = [
             ytdlp_path,
+            '--ignore-config', '--no-check-formats',
+            '--encoding', 'utf-8',
             '--simulate',
             '--print', 'title',
-            '--hlslang', 'ru',
-            'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+            '--load-info-json', str(info_file),
         ]
         
         result = subprocess.run(
@@ -106,15 +107,10 @@ class TestEncoding:
             timeout=30
         )
         
-        # Если видео недоступно - пропускаем
-        if 'unavailable' in result.stderr.lower():
-            pytest.skip(f"Видео недоступно")
-        
-        # Проверяем что вывод содержит текст
-        if len(result.stdout.strip()) > 0:
-            title = result.stdout.strip()
-            # Проверяем что title не содержит ошибок кодировки ( replacement character)
-            assert '' not in title, f"Название содержит символы замены: {title}"
+        assert result.returncode == 0, result.stderr
+        title = result.stdout.strip()
+        assert title == 'Проверка кириллицы — видео'
+        assert '\ufffd' not in title
 
 
 class TestLoggerEncoding:

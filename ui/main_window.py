@@ -33,6 +33,8 @@ from core.utils import get_clipboard_url, validate_url_for_ui, find_cookies_in_u
 from core.pipeline import (
     VIDEO_QUALITY_CHOICES,
     VIDEO_QUALITY_DEFAULT,
+    OUTPUT_CONTAINER_CHOICES,
+    normalize_output_container,
     validate_url_for_download,
     check_ytdlp_ready,
     get_ytdlp_download_url,
@@ -505,6 +507,7 @@ class MainWindow(ctk.CTk):
             clipboard_monitoring: bool,
             sound_enabled: bool,
             video_quality: str,
+            output_container: str,
         ):
             # Сохранение cookies path
             self.config_manager.set('COOKIES_PATH', cookies_path if cookies_path else '')
@@ -535,6 +538,8 @@ class MainWindow(ctk.CTk):
             self.config_manager.set('ENABLE_SOUND_NOTIFICATIONS', sound_enabled)
             quality = video_quality or VIDEO_QUALITY_DEFAULT
             self.config_manager.set('VIDEO_QUALITY', quality)
+            container = normalize_output_container(output_container)
+            self.config_manager.set('OUTPUT_CONTAINER', container)
             self.config_manager.save()
 
             # Запуск или остановка мониторинга
@@ -555,6 +560,7 @@ class MainWindow(ctk.CTk):
             quality_labels = {value: label for value, label in VIDEO_QUALITY_CHOICES}
             quality_label = quality_labels.get(quality, quality)
             self.log_viewer.info(f"Качество: {quality_label}")
+            self.log_viewer.info(f"Контейнер: {dict(OUTPUT_CONTAINER_CHOICES)[container]}")
 
         clipboard_monitoring_enabled = self.config_manager.get('CLIPBOARD_MONITORING', False)
         dialog = SettingsDialog(
@@ -730,7 +736,7 @@ class MainWindow(ctk.CTk):
                 self.after(0, lambda: self.log_viewer.success("Загрузка завершена"))
                 self.after(100, lambda: send_download_complete("Загрузка завершена", "Видео успешно загружено"))
                 self.after(150, lambda: self.sound_manager.play_end_download())
-            elif download_attempted:
+            elif download_attempted and not self._cancel_event.is_set():
                 self.after(0, lambda: self.log_viewer.error("Ошибка загрузки"))
                 self.after(100, lambda: send_download_error("Ошибка загрузки", "Произошла ошибка при загрузке видео"))
 

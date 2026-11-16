@@ -103,6 +103,7 @@ DEFAULT_CONFIG = {
     'ENABLE_GOODGAME_VOD_HANDLER': True,
     # Пресет качества: max | 1080 | 720 | 480
     'VIDEO_QUALITY': 'max',
+    'OUTPUT_CONTAINER': 'auto',
 }
 
 

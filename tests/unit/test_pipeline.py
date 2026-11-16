@@ -61,6 +61,18 @@ class TestValidateUrlForDownload:
 
 
 class TestEnsureDownloadDirectory:
+    @pytest.mark.parametrize('path', ['', '   '])
+    def test_empty_directory_is_rejected(self, path):
+        ok, message = ensure_download_directory(path)
+        assert not ok
+        assert 'не указан' in message
+
+    @patch('core.pipeline.os.makedirs', side_effect=OSError('disk full'))
+    def test_os_error_is_reported(self, _mock_makedirs):
+        ok, message = ensure_download_directory('/fake/path')
+        assert not ok
+        assert 'disk full' in message
+
     def test_existing_directory(self, tmp_path):
         ok, message = ensure_download_directory(str(tmp_path))
         assert ok is True
@@ -80,6 +92,14 @@ class TestEnsureDownloadDirectory:
 
 
 class TestDownloadTempDirectory:
+    def test_cleanup_failure_keeps_warning_noncritical(self, tmp_path, caplog):
+        temp_dir = tmp_path / DOWNLOAD_TEMP_DIR_NAME
+        temp_dir.mkdir()
+        with patch('core.pipeline.shutil.rmtree', side_effect=OSError('locked')):
+            cleanup_download_temp_directory(str(tmp_path))
+        assert temp_dir.is_dir()
+        assert 'locked' in caplog.text
+
     def test_get_download_temp_dir(self, tmp_path):
         download_dir = tmp_path / 'videos'
         download_dir.mkdir()
@@ -110,6 +130,13 @@ class TestDownloadTempDirectory:
 
 
 class TestCheckYtdlpReady:
+    def test_unconfigured_binary(self):
+        config = Mock()
+        config.get.return_value = ''
+        ready, message = check_ytdlp_ready(config)
+        assert not ready
+        assert 'не настроен' in message
+
     def test_ready_when_exists(self, tmp_path):
         ytdlp = tmp_path / 'yt-dlp.exe'
         ytdlp.write_bytes(b'')
@@ -165,7 +192,7 @@ class TestYtdlpFormatSelectorForQuality:
         selector = ytdlp_format_selector_for_quality(quality)
         assert f'bestvideo[height<={height}]+bestaudio' in selector
         assert f'best[height<={height}]' in selector
-        assert selector.endswith('/best')
+        assert selector.endswith(f'/best[height<={height}]')
 
     @pytest.mark.parametrize('quality', [None, '', '4k', 'best', 'MAX'])
     def test_unknown_falls_back_to_max(self, quality):

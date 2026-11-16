@@ -33,6 +33,66 @@ VIDEO_QUALITY_CHOICES = (
     (VIDEO_QUALITY_MAX, 'Максимально доступный'),
 )
 
+OUTPUT_CONTAINER_DEFAULT = 'auto'
+OUTPUT_CONTAINER_CHOICES = (
+    ('auto', 'Авто'),
+    ('mp4', 'MP4 — совместимость'),
+    ('webm', 'WebM'),
+    ('mkv', 'MKV — лучшее качество'),
+)
+OUTPUT_CONTAINER_DESCRIPTIONS = {
+    'auto': 'Лучшие доступные дорожки. Контейнер выбирает yt-dlp.',
+    'mp4': 'H.264 + AAC для широкой совместимости. Разрешение может быть ниже максимального.',
+    'webm': 'VP9/AV1/VP8 + Opus/Vorbis. Эти дорожки доступны не на всех сайтах.',
+    'mkv': 'Лучшие доступные дорожки, включая современные кодеки. Для просмотра подойдёт VLC.',
+}
+
+
+def normalize_output_container(value: Any) -> str:
+    """Неизвестное или повреждённое значение настройки → авто."""
+    value = value.strip().lower() if isinstance(value, str) else ''
+    return value if value in OUTPUT_CONTAINER_DESCRIPTIONS else OUTPUT_CONTAINER_DEFAULT
+
+
+def ytdlp_format_selector_for_container(
+    quality: str, container: str, source_selector: Optional[str] = None,
+) -> str:
+    """Выбрать совместимые дорожки без перекодирования и скрытого отката кодеков.
+
+    Идентификатор потока от обработчика сохраняется; для MP4/WebM он также
+    проверяется по кодекам. Неизвестные кодеки не дают обещать совместимость.
+    """
+    container = normalize_output_container(container)
+    if container not in ('mp4', 'webm'):
+        return source_selector or ytdlp_format_selector_for_quality(quality)
+
+    if container == 'mp4':
+        video = "[vcodec~='^(avc|h264)']"
+        audio = "[acodec~='^(mp4a|aac)']"
+    else:
+        video = "[vcodec~='^(vp8|vp9|vp08|vp09|av01|av1)']"
+        audio = "[acodec~='^(opus|vorbis)']"
+    if source_selector:
+        return f'({source_selector}){video}{audio}'
+    value = quality.strip().lower() if isinstance(quality, str) else ''
+    height = f'[height<={value}]' if value in _VIDEO_QUALITY_HEIGHTS else ''
+    return f'bestvideo{height}{video}+bestaudio{audio}/best{height}{video}{audio}'
+
+
+def ytdlp_container_options(container: str) -> list[str]:
+    """Контейнер и remux для отдельных дорожек и уже готового файла."""
+    container = normalize_output_container(container)
+    if container == 'auto':
+        return []
+    options = ['--merge-output-format', container, '--remux-video', container]
+    if container == 'mp4':
+        # Только MP4: не передавать movflags процессорам WebM/MKV.
+        options += [
+            '--postprocessor-args', 'Merger+ffmpeg_o:-movflags +faststart',
+            '--postprocessor-args', 'VideoRemuxer+ffmpeg_o:-movflags +faststart',
+        ]
+    return options
+
 
 def ytdlp_format_selector_for_quality(quality: str) -> str:
     """Вернуть строку -f для пресета VIDEO_QUALITY (неизвестный ключ → максимум)."""
@@ -40,7 +100,7 @@ def ytdlp_format_selector_for_quality(quality: str) -> str:
     if value in _VIDEO_QUALITY_HEIGHTS:
         return (
             f'bestvideo[height<={value}]+bestaudio/'
-            f'best[height<={value}]/best'
+            f'best[height<={value}]'
         )
     return YTDLP_FORMAT_BEST
 

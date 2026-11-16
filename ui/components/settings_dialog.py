@@ -11,7 +11,11 @@ import logging
 import customtkinter as ctk
 from tkinter import filedialog
 
-from core.pipeline import VIDEO_QUALITY_CHOICES, VIDEO_QUALITY_DEFAULT
+from core.pipeline import (
+    VIDEO_QUALITY_CHOICES, VIDEO_QUALITY_DEFAULT,
+    OUTPUT_CONTAINER_CHOICES, OUTPUT_CONTAINER_DEFAULT,
+    OUTPUT_CONTAINER_DESCRIPTIONS, normalize_output_container,
+)
 from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
 from core.utils import find_cookies_txt, normalize_path_for_display
@@ -54,7 +58,7 @@ class SettingsDialog(ctk.CTkToplevel):
         cookies_path: Optional[str],
         sponsorblock_categories: List[str],
         clipboard_monitoring: bool = False,
-        on_save: Callable[[Optional[str], List[str], bool, bool, str], None] = None,
+        on_save: Callable[[Optional[str], List[str], bool, bool, str, str], None] = None,
         config_manager=None
     ):
         self.parent = parent
@@ -329,6 +333,38 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         quality_button.pack(fill="x")
 
+        ctk.CTkLabel(
+            quality_section, text="Выходной контейнер",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=COLOR_THEME["text_primary"], anchor="w",
+        ).pack(fill="x", pady=(Spacing.LG, Spacing.SM))
+        self._container_values = {label: value for value, label in OUTPUT_CONTAINER_CHOICES}
+        container_labels = dict(OUTPUT_CONTAINER_CHOICES)
+        container = normalize_output_container(
+            self.config_manager.get('OUTPUT_CONTAINER', OUTPUT_CONTAINER_DEFAULT)
+            if self.config_manager else OUTPUT_CONTAINER_DEFAULT
+        )
+        self.container_var = ctk.StringVar(value=container_labels[container])
+        ctk.CTkSegmentedButton(
+            quality_section, values=list(self._container_values),
+            variable=self.container_var, command=self._on_container_changed,
+            font=ctk.CTkFont(size=12),
+            fg_color=COLOR_THEME["bg_primary"],
+            selected_color=COLOR_THEME["primary"],
+            selected_hover_color=COLOR_THEME["primary_hover"],
+            unselected_color=COLOR_THEME["bg_card"],
+            unselected_hover_color=COLOR_THEME["accent"],
+            text_color=COLOR_THEME["text_primary"],
+            corner_radius=COLOR_THEME["radius_md"],
+        ).pack(fill="x")
+        self.container_description = ctk.CTkLabel(
+            quality_section, text="", font=ctk.CTkFont(size=12),
+            text_color=COLOR_THEME["text_muted"], wraplength=520,
+            justify="left", anchor="w",
+        )
+        self.container_description.pack(fill="x", pady=(Spacing.SM, 0))
+        self._on_container_changed(self.container_var.get())
+
         # === Разделитель ===
         separator_quality = ctk.CTkFrame(content_frame, height=2, fg_color=COLOR_THEME["border"])
         separator_quality.pack(fill="x", pady=Spacing.LG)
@@ -518,6 +554,13 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         save_btn.pack(side="right", padx=(0, 6))
 
+    def _on_container_changed(self, label: str) -> None:
+        container = self._container_values.get(label, OUTPUT_CONTAINER_DEFAULT)
+        self.container_description.configure(
+            text=OUTPUT_CONTAINER_DESCRIPTIONS[container]
+            + '\nБез перекодирования. Если подходящих дорожек нет — выберите «Авто» или MKV.'
+        )
+
     def _browse_cookies(self) -> None:
         """Открыть диалог выбора файла cookies.txt."""
         initial_dir = os.path.dirname(self.cookies_path) if self.cookies_path else None
@@ -558,6 +601,9 @@ class SettingsDialog(ctk.CTkToplevel):
 
         quality_label = self.quality_var.get()
         video_quality = self._quality_values.get(quality_label, VIDEO_QUALITY_DEFAULT)
+        output_container = self._container_values.get(
+            self.container_var.get(), OUTPUT_CONTAINER_DEFAULT,
+        )
 
         if self.on_save_callback:
             self.on_save_callback(
@@ -566,6 +612,7 @@ class SettingsDialog(ctk.CTkToplevel):
                 clipboard_monitoring,
                 sound_enabled,
                 video_quality,
+                output_container,
             )
 
         self.destroy()
