@@ -320,6 +320,14 @@ class TestBuildCommand:
         assert downloader._parse_progress(line) is None
         assert downloader._parse_progress('[download] 45.2%') is not None
 
+    @pytest.mark.parametrize('line', [
+        '[download] Destination: Видео 100% качества.mp4',
+        '[download] Видео 100% качества.mp4 has already been downloaded',
+        '[debug] message containing [download] 100%',
+    ])
+    def test_parse_progress_ignores_percent_outside_progress(self, downloader, line):
+        assert downloader._parse_progress(line) is None
+
 
 class TestParsePhaseStatus:
     """Тесты парсинга фаз ffmpeg post-processing."""

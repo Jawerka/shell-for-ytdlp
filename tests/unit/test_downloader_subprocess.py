@@ -236,12 +236,15 @@ class TestVerboseDownloadGuiFilter:
             'VERBOSE_DOWNLOAD_LOG': True,
         }.get(key, default)
         log_callback = Mock()
-        downloader = YouTubeDownloader(config, log_callback, Mock())
+        progress_callback = Mock()
+        downloader = YouTubeDownloader(config, log_callback, progress_callback)
 
         lines = [
             b'send: b\'GET /videoplayback?ip=9.9.9.9 HTTP/1.1\\r\\nCookie: SID=secret\\r\\n\'\n',
             b'requests: https://rr5.googlevideo.com:443 "GET /videoplayback?ip=9.9.9.9 HTTP/1.1" 200 111\n',
             b'[download]  10.0% of  1.00MiB at  1.00MiB/s ETA 00:01\n',
+            b'[download] Destination: Secret Title 100%.mp4\n',
+            b'[download]  20.0% of  1.00MiB at  1.00MiB/s ETA 00:01\n',
             b'[youtube] abcdefghijk: Downloading webpage\n',
             b'ERROR: unable to download\n',
         ]
@@ -263,7 +266,9 @@ class TestVerboseDownloadGuiFilter:
         assert 'rr5.googlevideo.com' not in joined
         assert '10.0%' not in joined
         assert any('Downloading webpage' in msg for msg in gui_messages)
-        assert 'abcdefghijk' not in joined
+        assert 'abcdefghijk' in joined
+        assert 'Destination: Secret Title 100%.mp4' in joined
+        assert [call.args[0] for call in progress_callback.call_args_list] == [10.0, 20.0, 100.0]
 
         logs_dir = tmp_path / 'logs'
         files = list(logs_dir.glob('download-*.log'))
@@ -272,5 +277,7 @@ class TestVerboseDownloadGuiFilter:
         assert 'GET rr5.googlevideo.com 200 111' in log_text
         assert 'SID=secret' not in log_text
         assert 'ip=9.9.9.9' not in log_text
+        assert 'Secret Title' not in log_text
+        assert 'abcdefghijk' not in log_text
         assert '--- summary ---' in log_text
         assert '--verbose' in log_text or 'verbose' in log_text.lower()

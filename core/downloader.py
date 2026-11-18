@@ -246,7 +246,7 @@ class YouTubeDownloader:
             return None
 
         # Только прогресс yt-dlp. Иначе «29.0%» из статистики libx264 двигает бар.
-        if '[download]' not in line:
+        if not re.match(r'^\[download\]\s+\d{1,3}(?:\.\d+)?%', line):
             return None
 
         # Паттерны для парсинга
@@ -499,10 +499,7 @@ class YouTubeDownloader:
                     self._log("Не удалось создать подробный журнал загрузки", 'warning')
 
             if hints.log_title:
-                if self._verbose_log:
-                    self._log("Плагин: <title>")
-                else:
-                    self._log(f"Плагин: {hints.log_title}")
+                self._log(f"Плагин: {hints.log_title}")
 
             if self._verbose_log:
                 self._log("Запуск загрузки")

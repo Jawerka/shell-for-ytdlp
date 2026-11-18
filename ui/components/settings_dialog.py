@@ -9,8 +9,9 @@ import os
 import logging
 
 import customtkinter as ctk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 
+from core.config import get_utilities_path
 from core.pipeline import (
     VIDEO_QUALITY_CHOICES, VIDEO_QUALITY_DEFAULT,
     OUTPUT_CONTAINER_CHOICES, OUTPUT_CONTAINER_DEFAULT,
@@ -536,6 +537,20 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         verbose_checkbox.pack(side="left")
 
+        open_logs_button = ctk.CTkButton(
+            verbose_frame,
+            text="Открыть папку с логами",
+            command=self._open_logs_folder,
+            width=170,
+            height=26,
+            font=ctk.CTkFont(size=11),
+            fg_color=COLOR_THEME["bg_card"],
+            hover_color=COLOR_THEME.get("hover_accent", COLOR_THEME["primary"]),
+            text_color=COLOR_THEME["text_primary"],
+            corner_radius=COLOR_THEME["radius_md"],
+        )
+        open_logs_button.pack(side="left", padx=(Spacing.MD, 0))
+
         create_tooltip(
             verbose_checkbox,
             "Обезличенный файл в utilities/logs: серверы, формат и скорость, без данных пользователя"
@@ -583,6 +598,19 @@ class SettingsDialog(ctk.CTkToplevel):
             font=ctk.CTkFont(size=13),
         )
         save_btn.pack(side="right", padx=(0, 6))
+
+    def _open_logs_folder(self) -> None:
+        """Открыть каталог журналов, в том числе до первой загрузки."""
+        try:
+            utilities_path = self.config_manager.get('UTILITIES_PATH', '') if self.config_manager else ''
+            logs_path = os.path.join(utilities_path or get_utilities_path(), 'logs')
+            os.makedirs(logs_path, exist_ok=True)
+            os.startfile(logs_path)
+        except OSError as exc:
+            logger.warning("Не удалось открыть папку с логами: %s", exc)
+            messagebox.showerror(
+                "Ошибка", "Не удалось открыть папку с логами.", parent=self,
+            )
 
     def _on_container_changed(self, label: str) -> None:
         container = self._container_values.get(label, OUTPUT_CONTAINER_DEFAULT)

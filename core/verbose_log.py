@@ -236,6 +236,8 @@ def _redact_filesystem_paths(line: str) -> str:
 
 def sanitize_text(line: str) -> str:
     """Убрать из строки данные, по которым можно узнать пользователя или ролик."""
+    if line.startswith('Плагин: '):
+        return 'Плагин: <title>'
     line = _COOKIES_ARG_RE.sub(r'\1 <cookies>', line)
     line = _COOKIES_LIST_RE.sub(r'\1\2<cookies>', line)
     line = _COOKIES_FILE_RE.sub('<cookies>', line)
@@ -447,16 +449,16 @@ class VerboseDownloadLog:
         self._observe(kind, payload, raw)
         self._write(payload)
         if should_show_in_gui(kind, payload):
-            return payload
+            return raw.strip()
         return None
 
     def write_app_line(self, message: str) -> str:
-        """Записать сообщение приложения (уже или после цензуры) и вернуть его для GUI."""
+        """Записать обезличенное сообщение и вернуть исходное для GUI."""
         kind, payload = process_line(message)
         text = payload if payload is not None else sanitize_text(message)
         if text:
             self._write(text)
-        return text or message
+        return message
 
     def close(self, result: str) -> None:
         """Дописать сводку и закрыть файл. result: success | error | cancelled."""

@@ -342,10 +342,24 @@ class TestVerboseDownloadLogSession:
             now=lambda: datetime(2026, 11, 18, 18, 0, 0),
             monotonic=lambda: 0.0,
         )
-        text = session.write_app_line('Запуск загрузки: https://youtube.com/watch?v=secretid11')
-        assert '<url>' in text
-        assert 'secretid11' not in text
+        message = 'Запуск загрузки: https://youtube.com/watch?v=secretid11'
+        text = session.write_app_line(message)
+        assert text == message
+        assert '<url>' in buffer.getvalue()
         assert 'youtube.com' not in buffer.getvalue()
+
+    def test_gui_keeps_titles_while_file_is_anonymized(self):
+        buffer = StringIO()
+        session = VerboseDownloadLog('memory.log', buffer)
+        for message in (
+            '[download] Destination: Secret Title.mp4',
+            '[Merger] Merging formats into "Secret Title.mp4"',
+            '[MoveFiles] Moving file "Secret Title.mp4" to "Secret Title.mp4"',
+        ):
+            assert session.handle_ytdlp_line(message) == message
+        assert session.write_app_line('Плагин: Secret Title') == 'Плагин: Secret Title'
+        assert 'Secret Title' not in buffer.getvalue()
+        assert '<title>' in buffer.getvalue()
 
 
 class TestSummarizeTraffic:
