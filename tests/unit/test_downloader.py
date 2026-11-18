@@ -224,6 +224,20 @@ class TestBuildCommand:
         """SponsorBlock не добавляется для не-YouTube URL."""
         cmd = build_downloader._build_command('https://vk.com/video-1_2', '/output')
         assert '--sponsorblock-remove' not in cmd
+
+    def test_build_command_without_verbose_flags_by_default(self, build_downloader):
+        cmd = build_downloader._build_command('https://youtube.com/watch?v=test', '/output')
+        assert '--verbose' not in cmd
+        assert '--print-traffic' not in cmd
+        assert '--progress-delta' not in cmd
+
+    def test_build_command_verbose_flags_when_session_active(self, build_downloader):
+        build_downloader._verbose_log = Mock()
+        cmd = build_downloader._build_command('https://youtube.com/watch?v=test', '/output')
+        assert '--verbose' in cmd
+        assert '--print-traffic' in cmd
+        assert '--progress-delta' in cmd
+        assert cmd[cmd.index('--progress-delta') + 1] == '1'
     """Тесты парсинга прогресса."""
 
     @pytest.fixture
@@ -300,6 +314,11 @@ class TestBuildCommand:
         
         assert result is not None
         assert '796.49 KiB/s' in result[2]
+
+    def test_parse_progress_ignores_libx264_macroblock_percent(self, downloader):
+        line = '[libx264 @ 0001] mb I  I16..4: 29.0% 58.8% 12.2%'
+        assert downloader._parse_progress(line) is None
+        assert downloader._parse_progress('[download] 45.2%') is not None
 
 
 class TestParsePhaseStatus:

@@ -203,6 +203,18 @@ class TestConfigManagerMergeWithDefaults:
 
         assert result['VIDEO_QUALITY'] == '720'
 
+    def test_merge_adds_verbose_download_log_default(self):
+        config = ConfigManager.__new__(ConfigManager)
+        result = config._merge_with_defaults({})
+
+        assert result['VERBOSE_DOWNLOAD_LOG'] is False
+
+    def test_merge_preserves_verbose_download_log(self):
+        config = ConfigManager.__new__(ConfigManager)
+        result = config._merge_with_defaults({'VERBOSE_DOWNLOAD_LOG': True})
+
+        assert result['VERBOSE_DOWNLOAD_LOG'] is True
+
 
 class TestConfigManagerSave:
     """Тесты сохранения конфигурации."""

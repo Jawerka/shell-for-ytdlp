@@ -58,7 +58,7 @@ class SettingsDialog(ctk.CTkToplevel):
         cookies_path: Optional[str],
         sponsorblock_categories: List[str],
         clipboard_monitoring: bool = False,
-        on_save: Callable[[Optional[str], List[str], bool, bool, str, str], None] = None,
+        on_save: Callable[..., None] = None,
         config_manager=None
     ):
         self.parent = parent
@@ -511,6 +511,36 @@ class SettingsDialog(ctk.CTkToplevel):
             "Воспроизводить звуковые сигналы при событиях (начало/окончание загрузки)"
         )
 
+        verbose_enabled = False
+        if self.config_manager:
+            verbose_enabled = bool(self.config_manager.get('VERBOSE_DOWNLOAD_LOG', False))
+        self.verbose_log_var = ctk.BooleanVar(value=verbose_enabled)
+
+        verbose_frame = ctk.CTkFrame(auto_section, fg_color="transparent")
+        verbose_frame.pack(fill="x", pady=Spacing.SM)
+
+        verbose_checkbox = ctk.CTkCheckBox(
+            verbose_frame,
+            text="Подробный журнал загрузки",
+            variable=self.verbose_log_var,
+            width=20,
+            height=20,
+            checkbox_width=20,
+            checkbox_height=20,
+            font=ctk.CTkFont(size=12),
+            text_color=COLOR_THEME["text_primary"],
+            fg_color=COLOR_THEME["bg_card"],
+            border_color=COLOR_THEME["text_muted"],
+            hover_color=COLOR_THEME["primary"],
+            corner_radius=4,
+        )
+        verbose_checkbox.pack(side="left")
+
+        create_tooltip(
+            verbose_checkbox,
+            "Обезличенный файл в utilities/logs: серверы, формат и скорость, без данных пользователя"
+        )
+
         # Кнопки действий (фиксированная высота 46px, прижаты к низу main_frame)
         buttons_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         buttons_frame.pack(fill="x", side="bottom", pady=(Spacing.XS, 0))
@@ -604,6 +634,7 @@ class SettingsDialog(ctk.CTkToplevel):
         output_container = self._container_values.get(
             self.container_var.get(), OUTPUT_CONTAINER_DEFAULT,
         )
+        verbose_download_log = self.verbose_log_var.get()
 
         if self.on_save_callback:
             self.on_save_callback(
@@ -613,6 +644,7 @@ class SettingsDialog(ctk.CTkToplevel):
                 sound_enabled,
                 video_quality,
                 output_container,
+                verbose_download_log,
             )
 
         self.destroy()

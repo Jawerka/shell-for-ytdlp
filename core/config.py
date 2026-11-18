@@ -104,6 +104,8 @@ DEFAULT_CONFIG = {
     # Пресет качества: max | 1080 | 720 | 480
     'VIDEO_QUALITY': 'max',
     'OUTPUT_CONTAINER': 'auto',
+    # Подробный обезличенный журнал загрузки в utilities/logs/
+    'VERBOSE_DOWNLOAD_LOG': False,
 }
 
 
@@ -192,6 +194,8 @@ class ConfigManager:
             result['ENABLE_GOODGAME_VOD_HANDLER'] = True
         if 'VIDEO_QUALITY' not in result:
             result['VIDEO_QUALITY'] = 'max'
+        if 'VERBOSE_DOWNLOAD_LOG' not in result:
+            result['VERBOSE_DOWNLOAD_LOG'] = False
 
         return result
     

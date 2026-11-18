@@ -105,12 +105,16 @@ def test_settings_save_passes_container_and_quality():
     dialog.container_var = Mock()
     dialog.container_var.get.return_value = 'WebM'
     dialog._container_values = {'WebM': 'webm'}
+    dialog.verbose_log_var = Mock()
+    dialog.verbose_log_var.get.return_value = False
     dialog.on_save_callback = Mock()
     dialog.destroy = Mock()
 
     dialog._save_and_close()
 
-    dialog.on_save_callback.assert_called_once_with(None, [], False, True, '720', 'webm')
+    dialog.on_save_callback.assert_called_once_with(
+        None, [], False, True, '720', 'webm', False,
+    )
     dialog.destroy.assert_called_once()
 
 
@@ -125,9 +129,10 @@ def test_main_window_persists_container():
     with patch('ui.main_window.SettingsDialog') as dialog_class:
         window._open_settings()
         on_save = dialog_class.call_args.args[4]
-        on_save(None, [], False, True, '720', 'webm')
+        on_save(None, [], False, True, '720', 'webm', True)
     window.config_manager.set.assert_any_call('OUTPUT_CONTAINER', 'webm')
     window.config_manager.set.assert_any_call('VIDEO_QUALITY', '720')
+    window.config_manager.set.assert_any_call('VERBOSE_DOWNLOAD_LOG', True)
     window.config_manager.save.assert_called()
 
 

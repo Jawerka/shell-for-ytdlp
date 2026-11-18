@@ -26,6 +26,7 @@ from .pipeline import (
     ytdlp_container_options,
 )
 from .utils import find_cookies_txt, is_youtube_url, normalize_path_for_display, strip_youtube_playlist_params
+from .verbose_log import VERBOSE_YTDLP_OPTIONS, VerboseDownloadLog, is_verbose_download_log_enabled
 
 # Логгер для отладки
 logger = logging.getLogger('UI-for-ytdlp.downloader')
@@ -91,12 +92,14 @@ class YouTubeDownloader:
         self._cancelled = False
         self._range_error = False
         self._logs_buffer: List[str] = []  # Буфер для логирования ошибок
+        self._verbose_log: Optional[VerboseDownloadLog] = None
         logger.debug(f"YouTubeDownloader: DOWNLOAD_PATH = {config.get('DOWNLOAD_PATH')}")
         logger.debug(f"YouTubeDownloader: YTDLP_PATH = {config.get('YTDLP_PATH')}")
 
-    def _log(self, message: str, level: str = 'info') -> None:
+    def _log(self, message: str, level: str = 'info', *, from_ytdlp: bool = False) -> None:
         """Внутренний метод логирования."""
-        # Сохраняем в буфер для анализа ошибок
+        if self._verbose_log and not from_ytdlp:
+            message = self._verbose_log.write_app_line(message)
         self._logs_buffer.append(message)
         if self.log_callback:
             self.log_callback(message, level)
@@ -125,6 +128,8 @@ class YouTubeDownloader:
             options[format_index + 1] = format_selector
         except ValueError:
             options.extend(['-f', format_selector])
+        if self._verbose_log is not None:
+            options.extend(VERBOSE_YTDLP_OPTIONS)
         return options
 
     def _build_command(
@@ -240,8 +245,8 @@ class YouTubeDownloader:
         if not line or not isinstance(line, str):
             return None
 
-        # Пропускаем строки которые точно не содержат прогресс
-        if '[download]' not in line and '%' not in line:
+        # Только прогресс yt-dlp. Иначе «29.0%» из статистики libx264 двигает бар.
+        if '[download]' not in line:
             return None
 
         # Паттерны для парсинга
@@ -385,11 +390,15 @@ class YouTubeDownloader:
                     self._range_error = True
 
                 file_access_status = self._parse_file_access_retry(line_str)
+                gui_line = line_str
+                if self._verbose_log is not None:
+                    gui_line = self._verbose_log.handle_ytdlp_line(line_str)
+
                 if file_access_status:
                     # Оставляем исходное сообщение для диагностики, но показываем пользователю
                     # понятный статус вместо англоязычной строки с ERROR.
-                    self._logs_buffer.append(line_str)
-                    self._log(file_access_status)
+                    self._logs_buffer.append(gui_line or file_access_status)
+                    self._log(file_access_status, from_ytdlp=True)
                     self._progress(last_percent, file_access_status)
                     continue
 
@@ -409,9 +418,10 @@ class YouTubeDownloader:
                     self._progress(percent, progress_info)
                 elif phase:
                     self._progress(last_percent, phase)
-                    self._log(line_str)
-                else:
-                    self._log(line_str)
+                    if gui_line:
+                        self._log(gui_line, from_ytdlp=True)
+                elif gui_line:
+                    self._log(gui_line, from_ytdlp=True)
 
             logger.debug(f"download: Всего строк вывода: {line_count}")
 
@@ -437,7 +447,9 @@ class YouTubeDownloader:
 
         self._cancelled = False
         self._logs_buffer = []  # Очищаем буфер перед загрузкой
-        
+        self._verbose_log = None
+        download_result = 'error'
+
         download_path = self.config.get('DOWNLOAD_PATH', '')
         ytdlp_path = self.config.get('YTDLP_PATH', '')
 
@@ -474,22 +486,42 @@ class YouTubeDownloader:
             self._log(str(e), 'error')
             return False
 
-        if hints.log_title:
-            self._log(f"Плагин: {hints.log_title}")
-
-        self._log(f"Запуск загрузки: {url}")
-        self._log(f"Путь сохранения: {normalize_path_for_display(download_path)}")
-
         logger.debug("download: Запуск subprocess.Popen")
 
         try:
+            if is_verbose_download_log_enabled(self.config):
+                self._verbose_log = VerboseDownloadLog.create(
+                    self.config.get('UTILITIES_PATH', '')
+                )
+                if self._verbose_log:
+                    self._log(f"Подробный журнал: {self._verbose_log.relative_path}")
+                else:
+                    self._log("Не удалось создать подробный журнал загрузки", 'warning')
+
+            if hints.log_title:
+                if self._verbose_log:
+                    self._log("Плагин: <title>")
+                else:
+                    self._log(f"Плагин: {hints.log_title}")
+
+            if self._verbose_log:
+                self._log("Запуск загрузки")
+            else:
+                self._log(f"Запуск загрузки: {url}")
+            self._log(f"Путь сохранения: {normalize_path_for_display(download_path)}")
+
             for attempt in range(2):
                 cmd = self._build_command(url, download_path, hints, resume=attempt == 0)
                 logger.debug(f"download: Команда (попытка {attempt + 1}): {cmd}")
+                if self._verbose_log:
+                    self._verbose_log.handle_ytdlp_line(
+                        f'yt-dlp attempt {attempt + 1}: ' + ' '.join(cmd)
+                    )
 
                 return_code = self._run_process(cmd)
 
                 if return_code is None:
+                    download_result = 'cancelled'
                     return False
 
                 if return_code == 0:
@@ -497,6 +529,7 @@ class YouTubeDownloader:
                     cleanup_download_temp_directory(download_path)
                     self._log("Загрузка завершена успешно", 'success')
                     self._progress(100.0, "Завершено")
+                    download_result = 'success'
                     return True
 
                 if self._range_error and attempt == 0 and not self._cancelled:
@@ -537,13 +570,20 @@ class YouTubeDownloader:
             self._log("Прервано пользователем", 'warning')
             if self._process:
                 _terminate_process_tree(self._process)
+            download_result = 'cancelled'
             return False
         except Exception as e:
             logger.error(f"download: Исключение: {e}", exc_info=True)
             self._log(f"Ошибка загрузки: {e}", 'error')
+            download_result = 'error'
             return False
         finally:
             logger.debug("download: Очистка process")
+            if self._cancelled:
+                download_result = 'cancelled'
+            if self._verbose_log:
+                self._verbose_log.close(download_result)
+                self._verbose_log = None
             self._process = None
             self._logs_buffer = []  # Очищаем буфер после загрузки
 

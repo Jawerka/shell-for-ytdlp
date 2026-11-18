@@ -221,3 +221,56 @@ class TestDownloadSubprocess:
 
         assert result is True
         assert new_dir.is_dir()
+
+
+class TestVerboseDownloadGuiFilter:
+    def test_traffic_stays_out_of_gui_stage_goes_in(self, tmp_path):
+        (tmp_path / 'yt-dlp.exe').write_bytes(b'')
+        config = Mock()
+        config.get.side_effect = lambda key, default=None: {
+            'DOWNLOAD_PATH': str(tmp_path),
+            'YTDLP_PATH': str(tmp_path / 'yt-dlp.exe'),
+            'UTILITIES_PATH': str(tmp_path),
+            'COOKIES_PATH': '',
+            'SPONSORBLOCK_REMOVE_LIST': [],
+            'VERBOSE_DOWNLOAD_LOG': True,
+        }.get(key, default)
+        log_callback = Mock()
+        downloader = YouTubeDownloader(config, log_callback, Mock())
+
+        lines = [
+            b'send: b\'GET /videoplayback?ip=9.9.9.9 HTTP/1.1\\r\\nCookie: SID=secret\\r\\n\'\n',
+            b'requests: https://rr5.googlevideo.com:443 "GET /videoplayback?ip=9.9.9.9 HTTP/1.1" 200 111\n',
+            b'[download]  10.0% of  1.00MiB at  1.00MiB/s ETA 00:01\n',
+            b'[youtube] abcdefghijk: Downloading webpage\n',
+            b'ERROR: unable to download\n',
+        ]
+        mock_process = MagicMock()
+        mock_process.pid = 1234
+        mock_process.stdout = iter(lines)
+        mock_process.wait.return_value = 0
+
+        with patch('core.downloader.subprocess.Popen', return_value=mock_process):
+            with patch('core.downloader.cleanup_download_temp_directory'):
+                result = downloader.download('https://youtube.com/watch?v=abcdefghijk')
+
+        assert result is True
+        gui_messages = [call.args[0] for call in log_callback.call_args_list]
+        joined = '\n'.join(gui_messages)
+        assert 'SID=secret' not in joined
+        assert 'Cookie:' not in joined
+        assert 'ip=9.9.9.9' not in joined
+        assert 'rr5.googlevideo.com' not in joined
+        assert '10.0%' not in joined
+        assert any('Downloading webpage' in msg for msg in gui_messages)
+        assert 'abcdefghijk' not in joined
+
+        logs_dir = tmp_path / 'logs'
+        files = list(logs_dir.glob('download-*.log'))
+        assert len(files) == 1
+        log_text = files[0].read_text(encoding='utf-8')
+        assert 'GET rr5.googlevideo.com 200 111' in log_text
+        assert 'SID=secret' not in log_text
+        assert 'ip=9.9.9.9' not in log_text
+        assert '--- summary ---' in log_text
+        assert '--verbose' in log_text or 'verbose' in log_text.lower()

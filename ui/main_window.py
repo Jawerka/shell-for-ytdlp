@@ -508,6 +508,7 @@ class MainWindow(ctk.CTk):
             sound_enabled: bool,
             video_quality: str,
             output_container: str,
+            verbose_download_log: bool = False,
         ):
             # Сохранение cookies path
             self.config_manager.set('COOKIES_PATH', cookies_path if cookies_path else '')
@@ -540,6 +541,7 @@ class MainWindow(ctk.CTk):
             self.config_manager.set('VIDEO_QUALITY', quality)
             container = normalize_output_container(output_container)
             self.config_manager.set('OUTPUT_CONTAINER', container)
+            self.config_manager.set('VERBOSE_DOWNLOAD_LOG', bool(verbose_download_log))
             self.config_manager.save()
 
             # Запуск или остановка мониторинга
@@ -561,6 +563,10 @@ class MainWindow(ctk.CTk):
             quality_label = quality_labels.get(quality, quality)
             self.log_viewer.info(f"Качество: {quality_label}")
             self.log_viewer.info(f"Контейнер: {dict(OUTPUT_CONTAINER_CHOICES)[container]}")
+            if verbose_download_log:
+                self.log_viewer.info("Подробный журнал загрузки включён")
+            else:
+                self.log_viewer.info("Подробный журнал загрузки выключен")
 
         clipboard_monitoring_enabled = self.config_manager.get('CLIPBOARD_MONITORING', False)
         dialog = SettingsDialog(
