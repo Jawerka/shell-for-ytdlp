@@ -343,7 +343,7 @@ class TestParsePhaseStatus:
 
     def test_parse_phase_status_merger(self, downloader):
         line = '[Merger] Merging formats into "video.mp4"'
-        assert downloader._parse_phase_status(line) == 'Слияние потоков (ffmpeg)...'
+        assert downloader._parse_phase_status(line) == 'Объединение дорожек (ffmpeg). Большие файлы могут занять несколько минут...'
 
     def test_parse_phase_status_ffmpeg(self, downloader):
         line = '[ffmpeg] Something'
@@ -355,7 +355,7 @@ class TestParsePhaseStatus:
 
     def test_parse_phase_status_sponsorblock(self, downloader):
         line = '[SponsorBlock] Removing sponsor segments'
-        assert downloader._parse_phase_status(line) == 'SponsorBlock (ffmpeg)...'
+        assert downloader._parse_phase_status(line) == 'Получение отметок SponsorBlock...'
 
     def test_parse_file_access_retry_shows_reassuring_status(self, downloader):
         line = (

@@ -10,6 +10,7 @@ import os
 import re
 import subprocess
 import logging
+import time
 from typing import Callable, Optional, Tuple, List
 
 from .config import ConfigManager
@@ -24,6 +25,8 @@ from .pipeline import (
     get_download_temp_dir,
     ytdlp_format_selector_for_container,
     ytdlp_container_options,
+    SponsorBlockAvailability,
+    is_sponsorblock_network_error,
 )
 from .utils import find_cookies_txt, is_youtube_url, normalize_path_for_display, strip_youtube_playlist_params
 from .verbose_log import VERBOSE_YTDLP_OPTIONS, VerboseDownloadLog, is_verbose_download_log_enabled
@@ -74,7 +77,10 @@ class YouTubeDownloader:
         self,
         config: ConfigManager,
         log_callback: Callable[[str, str], None],
-        progress_callback: Callable[[float, str], None]
+        progress_callback: Callable[[float, str], None],
+        sponsorblock_state=None,
+        sponsorblock_question=None,
+        sponsorblock_notice=None,
     ):
         """
         Инициализация загрузчика.
@@ -93,6 +99,14 @@ class YouTubeDownloader:
         self._range_error = False
         self._logs_buffer: List[str] = []  # Буфер для логирования ошибок
         self._verbose_log: Optional[VerboseDownloadLog] = None
+        self.sponsorblock_state = sponsorblock_state or SponsorBlockAvailability()
+        self.sponsorblock_question = sponsorblock_question
+        self.sponsorblock_notice = sponsorblock_notice
+        self._bypass_sponsorblock = False
+        self._sponsorblock_error = False
+        self._sponsorblock_reason = ''
+        self.already_downloaded = False
+        self.result_message = ''
         logger.debug(f"YouTubeDownloader: DOWNLOAD_PATH = {config.get('DOWNLOAD_PATH')}")
         logger.debug(f"YouTubeDownloader: YTDLP_PATH = {config.get('YTDLP_PATH')}")
 
@@ -194,11 +208,19 @@ class YouTubeDownloader:
 
         # SponsorBlock — только для YouTube (на других сайтах сегментов нет)
         sponsorblock_list = self.config.get('SPONSORBLOCK_REMOVE_LIST', [])
-        if sponsorblock_list and is_youtube_url(url):
+        if sponsorblock_list and is_youtube_url(url) and not self._bypass_sponsorblock:
             categories = ','.join(sponsorblock_list)
             logger.debug(f"_build_command: SponsorBlock категории = {sponsorblock_list}")
             cmd.append('--sponsorblock-remove')
             cmd.append(categories)
+            # yt-dlp откладывает некоторые ошибки SponsorBlock до конца загрузки.
+            # Его штатный интерактивный фильтр держит передачу на паузе,
+            # пока мы не подтвердим успешное получение отметок через stdin.
+            cmd.extend(['--match-filter', '-', '--no-quiet', '--color', 'never'])
+        elif self._bypass_sponsorblock:
+            # Переопределить также SponsorBlock из внешнего yt-dlp.conf.
+            cmd.append('--no-sponsorblock')
+            logger.debug('_build_command: SponsorBlock временно пропущен')
         elif sponsorblock_list:
             logger.debug("_build_command: SponsorBlock пропущен (не YouTube URL)")
         else:
@@ -298,9 +320,9 @@ class YouTubeDownloader:
             return None
 
         if '[Merger]' in line:
-            return 'Слияние потоков (ffmpeg)...'
+            return 'Объединение дорожек (ffmpeg). Большие файлы могут занять несколько минут...'
         if '[SponsorBlock]' in line:
-            return 'SponsorBlock (ffmpeg)...'
+            return 'Получение отметок SponsorBlock...'
         if '[VideoRemuxer]' in line and 'Not remuxing' not in line:
             return 'Перепаковка контейнера (ffmpeg)...'
         if '[FixupM3u8]' in line:
@@ -337,6 +359,10 @@ class YouTubeDownloader:
             Код возврата или None, если загрузка отменена пользователем
         """
         self._range_error = False
+        self._sponsorblock_error = False
+        fetching_sponsorblock = False
+        sponsorblock_gate = '--sponsorblock-remove' in cmd and '--match-filter' in cmd
+        gate_approved = False
 
         # Используем список аргументов без shell=True для безопасности
         # Читаем вывод как binary, чтобы корректно обрабатывать русские символы
@@ -345,6 +371,7 @@ class YouTubeDownloader:
             shell=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
+            stdin=subprocess.PIPE if sponsorblock_gate else None,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
         self._process = process
@@ -360,6 +387,8 @@ class YouTubeDownloader:
         if process.stdout:
             line_count = 0
             last_percent = 0.0
+            last_data_at = time.monotonic()
+            stream_label = 'Получение информации'
             for line in process.stdout:
                 if self._cancelled:
                     logger.warning("download: Отмена пользователем")
@@ -380,6 +409,50 @@ class YouTubeDownloader:
 
                 if not line_str:
                     continue
+
+                if '[SponsorBlock] Fetching' in line_str:
+                    fetching_sponsorblock = True
+                    gate_approved = False
+                if sponsorblock_gate and not gate_approved and re.search(
+                    r'^\[SponsorBlock\] (?:Found \d+ segments|No matching segments were found)', line_str,
+                ):
+                    if self._cancelled:
+                        _terminate_process_tree(process)
+                        process.wait()
+                        return None
+                    process.stdin.write(b'y\n')
+                    process.stdin.flush()
+                    gate_approved = True
+                if '[info]' in line_str or '[download]' in line_str or '[Merger]' in line_str:
+                    fetching_sponsorblock = False
+                    # Предупреждение API, после которого yt-dlp продолжил работу,
+                    # не должно объяснять последующую ошибку видео/ffmpeg.
+                    self._sponsorblock_error = False
+                if is_sponsorblock_network_error(line_str, fetching_sponsorblock):
+                    self._sponsorblock_error = True
+                    self._sponsorblock_reason = line_str
+                    # yt-dlp может отложить эту ошибку и продолжить скачивание.
+                    # Не ждём его завершения: решение о пропуске принимает пользователь.
+                    if self._verbose_log is not None:
+                        self._verbose_log.handle_ytdlp_line(line_str)
+                    self._log(line_str, 'warning', from_ytdlp=True)
+                    if fetching_sponsorblock:
+                        # На этапе получения отметок ffmpeg ещё не запущен.
+                        process.kill()
+                    else:
+                        _terminate_process_tree(process)
+                    process.wait()
+                    if process.stdout is not None:
+                        process.stdout.close()
+                    if process.stdin is not None:
+                        process.stdin.close()
+                    self._process = None
+                    return None if self._cancelled else 1
+                if 'has already been downloaded' in line_str:
+                    self.already_downloaded = True
+                if '[download]' in line_str and 'Destination:' in line_str:
+                    stream_label = ('Аудио' if re.search(r'\.(m4a|opus|mp3|aac|ogg)(?:\.part)?$', line_str, re.I)
+                                    else 'Видео')
 
                 line_count += 1
 
@@ -406,10 +479,12 @@ class YouTubeDownloader:
                 phase = self._parse_phase_status(line_str)
                 if progress:
                     percent, info, speed, eta = progress
+                    if percent != last_percent:
+                        last_data_at = time.monotonic()
                     last_percent = percent
-                    progress_info = info
+                    progress_info = f'{stream_label} · {info}'
                     if speed or eta:
-                        parts = [info]
+                        parts = [progress_info]
                         if speed:
                             parts.append(f" | {speed}")
                         if eta:
@@ -423,15 +498,88 @@ class YouTubeDownloader:
                 elif gui_line:
                     self._log(gui_line, from_ytdlp=True)
 
+                retry = re.search(r'Retrying\s*\((\d+)/(\d+)\)', line_str, re.I)
+                if retry and not file_access_status:
+                    idle = int(time.monotonic() - last_data_at)
+                    self._progress(last_percent,
+                        f'{stream_label} · Передача прервана или сервер не отвечает. '
+                        f'Повтор {retry[1]}/{retry[2]}, без продвижения {idle} с...')
+
             logger.debug(f"download: Всего строк вывода: {line_count}")
 
         # cancel() может очистить self._process, пока поток читает stdout/ждёт EOF.
         return_code = process.wait()
+        if process.stdin is not None:
+            process.stdin.close()
         if self._cancelled:
             self._log("Загрузка отменена пользователем", 'warning')
             return None
         logger.debug(f"download: Return code = {return_code}")
         return return_code
+
+    def _allow_sponsorblock_bypass(self) -> bool:
+        if self._cancelled:
+            return False
+        policy = self.config.get('SPONSORBLOCK_FAILURE_POLICY', 'ask')
+        if policy == 'bypass':
+            return True
+        if policy == 'stop' or self.sponsorblock_question is None:
+            return False
+        while not self._cancelled:
+            decision, remember = self.sponsorblock_question(self._sponsorblock_reason)
+            if self._cancelled:
+                return False
+            if decision == 'retry':
+                self._progress(0, 'Проверка SponsorBlock...')
+                healthy = self.sponsorblock_state.probe(force=True)
+                if self._cancelled:
+                    return False
+                if healthy:
+                    self._notify_sponsorblock_recovered()
+                    return True
+                continue
+            if decision == 'bypass':
+                if remember:
+                    self.config.set('SPONSORBLOCK_FAILURE_POLICY', 'bypass')
+                    try:
+                        self.config.save()
+                    except OSError:
+                        self._log('Не удалось сохранить согласие на обход SponsorBlock. '
+                                  'Оно действует до закрытия приложения.', 'warning')
+                return True
+            self._cancelled = True
+            self._log('Загрузка отменена пользователем в вопросе SponsorBlock.', 'info')
+            return False
+        return False
+
+    def _notify_sponsorblock_recovered(self):
+        message = 'SponsorBlock снова доступен. Вырезание вставок возобновлено.'
+        self._log(message, 'success')
+        if self.sponsorblock_notice:
+            try:
+                self.sponsorblock_notice(message)
+            except Exception:
+                logger.warning('Не удалось показать уведомление SponsorBlock', exc_info=True)
+
+    def _prepare_sponsorblock(self, url):
+        self._bypass_sponsorblock = False
+        if not (is_youtube_url(url) and self.config.get('SPONSORBLOCK_REMOVE_LIST', [])):
+            return True
+        if self.sponsorblock_state.unavailable:
+            recovered = self.sponsorblock_state.probe()
+            if self._cancelled:
+                return False
+            if recovered:
+                self._notify_sponsorblock_recovered()
+            else:
+                self._sponsorblock_reason = 'Не удалось связаться с API SponsorBlock'
+                if not self._allow_sponsorblock_bypass():
+                    self._log('SponsorBlock недоступен. Загрузка остановлена.', 'warning')
+                    return False
+                self._bypass_sponsorblock = self.sponsorblock_state.unavailable
+        if self._bypass_sponsorblock:
+            self._log('SponsorBlock недоступен — скачиваем без вырезания вставок.', 'warning')
+        return not self._cancelled
 
     def download(self, url: str) -> bool:
         """
@@ -448,6 +596,8 @@ class YouTubeDownloader:
         self._cancelled = False
         self._logs_buffer = []  # Очищаем буфер перед загрузкой
         self._verbose_log = None
+        self.already_downloaded = False
+        self.result_message = ''
         download_result = 'error'
 
         download_path = self.config.get('DOWNLOAD_PATH', '')
@@ -507,8 +657,14 @@ class YouTubeDownloader:
                 self._log(f"Запуск загрузки: {url}")
             self._log(f"Путь сохранения: {normalize_path_for_display(download_path)}")
 
-            for attempt in range(2):
-                cmd = self._build_command(url, download_path, hints, resume=attempt == 0)
+            if not self._prepare_sponsorblock(url):
+                return False
+            range_retried = False
+            sponsorblock_retried = False
+            for attempt in range(3):
+                if self._cancelled:
+                    return False
+                cmd = self._build_command(url, download_path, hints, resume=not range_retried)
                 logger.debug(f"download: Команда (попытка {attempt + 1}): {cmd}")
                 if self._verbose_log:
                     self._verbose_log.handle_ytdlp_line(
@@ -524,12 +680,32 @@ class YouTubeDownloader:
                 if return_code == 0:
                     logger.debug("download: Загрузка успешна")
                     cleanup_download_temp_directory(download_path)
-                    self._log("Загрузка завершена успешно", 'success')
+                    self.result_message = (
+                        'Файл уже существует' if self.already_downloaded else
+                        'Скачано без вырезания вставок' if self._bypass_sponsorblock else
+                        'Файл скачан'
+                    )
+                    self._log(self.result_message, 'success')
                     self._progress(100.0, "Завершено")
                     download_result = 'success'
                     return True
 
-                if self._range_error and attempt == 0 and not self._cancelled:
+                if self._sponsorblock_error and not self._cancelled:
+                    self.sponsorblock_state.failed()
+                    self._log(f'Не удалось связаться с SponsorBlock: {self._sponsorblock_reason}', 'warning')
+                    if sponsorblock_retried or self._bypass_sponsorblock:
+                        break
+                    sponsorblock_retried = True
+                    if self._allow_sponsorblock_bypass():
+                        self._bypass_sponsorblock = self.sponsorblock_state.unavailable
+                        if self._bypass_sponsorblock:
+                            self._log('SponsorBlock недоступен — скачиваем без вырезания вставок.', 'warning')
+                        self._logs_buffer = []
+                        continue
+                    break
+
+                if self._range_error and not range_retried and not self._cancelled:
+                    range_retried = True
                     self._log(
                         "HTTP 416: сервер не принимает продолжение. "
                         "Перезапуск загрузки с нуля (без --continue).",
@@ -541,16 +717,17 @@ class YouTubeDownloader:
                 break
 
             # Подробное логирование ошибок
+            if self._cancelled:
+                return False
             logger.error(f"download: Ошибка, return code = {return_code}")
             self._log(f"yt-dlp завершил с кодом {return_code}", 'error')
-
             error_lines = [
                 line for line in self._logs_buffer
                 if 'ERROR' in line or 'Error' in line or 'failed' in line.lower() or 'unable' in line.lower()
             ]
             if error_lines:
                 logger.error(f"download: Ошибки в выводе: {error_lines[:5]}")
-                for err_line in error_lines[:3]:  # Показываем первые 3 ошибки
+                for err_line in error_lines[-3:]:
                     self._log(f"Ошибка: {err_line}", 'error')
 
             if any('requested format is not available' in line.lower() for line in error_lines):

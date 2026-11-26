@@ -16,6 +16,7 @@ from core.pipeline import (
     VIDEO_QUALITY_CHOICES, VIDEO_QUALITY_DEFAULT,
     OUTPUT_CONTAINER_CHOICES, OUTPUT_CONTAINER_DEFAULT,
     OUTPUT_CONTAINER_DESCRIPTIONS, normalize_output_container,
+    SPONSORBLOCK_FAILURE_POLICIES,
 )
 from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
@@ -393,6 +394,11 @@ class SettingsDialog(ctk.CTkToplevel):
             anchor="w"
         )
         sponsorblock_desc.pack(fill="x", pady=(0, Spacing.SM))
+        ctk.CTkLabel(sponsorblock_section, text='Если SponsorBlock недоступен:', anchor='w').pack(fill='x')
+        policy = self.config_manager.get('SPONSORBLOCK_FAILURE_POLICY', 'ask') if self.config_manager else 'ask'
+        self.sponsorblock_policy_var = ctk.StringVar(value=SPONSORBLOCK_FAILURE_POLICIES.get(policy, 'Спрашивать'))
+        ctk.CTkOptionMenu(sponsorblock_section, variable=self.sponsorblock_policy_var,
+                          values=list(SPONSORBLOCK_FAILURE_POLICIES.values())).pack(fill='x', pady=(4, 12))
 
         # Чекбоксы категорий
         self.checkbox_vars = {}
@@ -641,6 +647,11 @@ class SettingsDialog(ctk.CTkToplevel):
 
     def _save_and_close(self) -> None:
         """Сохранить настройки и закрыть диалог."""
+        if self.config_manager:
+            policy = next((key for key, label in SPONSORBLOCK_FAILURE_POLICIES.items()
+                           if label == self.sponsorblock_policy_var.get()), 'ask')
+            self.config_manager.set('SPONSORBLOCK_FAILURE_POLICY', policy)
+            self.config_manager.save()
         # Cookies path
         cookies_path = self.cookies_entry.get().strip()
         if not cookies_path:

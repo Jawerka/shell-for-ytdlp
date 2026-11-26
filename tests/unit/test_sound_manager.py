@@ -28,6 +28,15 @@ from core.sound_manager import (
 )
 
 
+@pytest.mark.parametrize('enabled', [True, False])
+def test_attention_respects_sound_setting(enabled):
+    manager = SoundManager(enabled=enabled)
+    winsound = Mock()
+    with patch.dict(sys.modules, {'winsound': winsound}), patch('core.sound_manager.os.name', 'nt'):
+        manager.play_attention()
+    assert winsound.MessageBeep.call_count == int(enabled)
+
+
 class TestSoundManagerInit:
     """Тесты инициализации SoundManager."""
 

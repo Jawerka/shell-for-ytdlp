@@ -178,6 +178,19 @@ class SoundManager:
         """Воспроизвести звук ошибки загрузки (зарезервировано)."""
         self.play('ERROR_DOWNLOAD')
 
+    def play_attention(self) -> None:
+        """Короткий системный сигнал вопроса, без зависимости от WAV-файла."""
+        if not self.enabled:
+            return
+        try:
+            if os.name == 'nt':
+                import winsound
+                winsound.MessageBeep(winsound.MB_ICONEXCLAMATION)
+            else:
+                self.play_start_download()
+        except Exception:
+            logger.warning('Не удалось воспроизвести сигнал вопроса', exc_info=True)
+
     def set_enabled(self, enabled: bool) -> None:
         """
         Включить или отключить звуковые эффекты.

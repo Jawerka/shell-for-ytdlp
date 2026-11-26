@@ -11,12 +11,82 @@ from __future__ import annotations
 import logging
 import os
 import shutil
+import time
+import re
+from urllib.request import urlopen
+from urllib.error import HTTPError
 from enum import Enum
 from typing import Any, Optional, Tuple
 
 from .utils import validate_http_url
 
 logger = logging.getLogger('UI-for-ytdlp.pipeline')
+
+SPONSORBLOCK_FAILURE_POLICIES = {
+    'ask': 'Спрашивать',
+    'bypass': 'Скачивать без вырезания',
+    'stop': 'Останавливать загрузку',
+}
+
+
+def is_sponsorblock_network_error(line: str, fetching: bool = False) -> bool:
+    """Сбой API (сеть/неверный JSON), но не скачивания или вырезания ffmpeg."""
+    text = line.lower()
+    if fetching and text.startswith(('json.decoder.jsondecodeerror:', 'jsondecodeerror:')):
+        return True
+    if not (text.startswith(('error:', 'warning:'))
+            or re.search(r'\]\s*(?:error|warning):', text)):
+        return False
+    source = 'sponsor.ajay.app' in text or 'sponsorblock api' in text
+    if not source and ('ffmpeg' in text or 'video data' in text or '[youtube]' in text):
+        return False
+    network = any(token in text for token in (
+        'timed out', 'timeout', 'connection', 'unable to communicate',
+        'unable to download', 'http error 5', 'http error 429',
+        'certificate_verify_failed', 'name resolution',
+    ))
+    return network and (source or (fetching and text.startswith('error:')
+                                  and not re.search(r'https?://|host=', text)))
+
+
+class SponsorBlockAvailability:
+    """Состояние сервиса на время работы приложения; выбор хранится отдельно."""
+
+    def __init__(self, clock=time.monotonic):
+        self.clock = clock
+        self.unavailable = False
+        self.failures = 0
+        self.next_probe = 0.0
+
+    def failed(self):
+        self.unavailable = True
+        self.failures += 1
+        self.next_probe = self.clock() + (30, 120, 300)[min(self.failures - 1, 2)]
+
+    def recovered(self):
+        self.unavailable = False
+        self.failures = 0
+        self.next_probe = 0.0
+
+    def probe(self, force=False):
+        """None: ещё рано; bool: ответ API. Вызывать только в рабочем потоке."""
+        if not force and self.clock() < self.next_probe:
+            return None
+        try:
+            with urlopen('https://sponsor.ajay.app/api/skipSegments/0000', timeout=3) as response:
+                import json
+                healthy = isinstance(json.loads(response.read(1024 * 1024)), list)
+        except HTTPError as exc:
+            # API возвращает 404, если для префикса нет отметок.
+            healthy = exc.code == 404
+            exc.close()
+        except Exception:
+            healthy = False
+        if healthy:
+            self.recovered()
+        else:
+            self.failed()
+        return healthy
 
 # Папка для .part и прочих промежуточных файлов yt-dlp (рядом с DOWNLOAD_PATH).
 DOWNLOAD_TEMP_DIR_NAME = '_UI-for-ytdlp-temp'

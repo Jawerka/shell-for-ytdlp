@@ -77,6 +77,7 @@ DEFAULT_CONFIG = {
     'UTILITIES_PATH': '',
     'DOWNLOAD_PATH': os.path.join(os.getenv('USERPROFILE', ''), 'Downloads'),
     'SPONSORBLOCK_REMOVE_LIST': ['sponsor', 'selfpromo'],
+    'SPONSORBLOCK_FAILURE_POLICY': 'ask',
     'YTDLP_PATH': '',
     'QUESTION_BYPASS': False,
     # Настройки уведомлений

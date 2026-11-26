@@ -323,7 +323,8 @@ class TestVerboseDownloadLogSession:
         assert 'configuration:' not in text
         assert 'Cookie' not in text
         assert 'SID=' not in text
-        assert 'page parse: 3.5s' in text
+        assert 'preparation (includes waits/retries): 3.5s' in text
+        assert 'first progress: not observed' in text
         assert 'download: 10.3s' in text
         assert 'encode: 7.6s' in text
         assert 'merge: 0.5s' in text
@@ -366,3 +367,28 @@ class TestSummarizeTraffic:
     def test_none_size(self):
         line = 'https://example.com:443 "GET /x HTTP/1.1" 204 None'
         assert summarize_traffic(line) == 'GET example.com 204'
+
+
+def test_summary_sums_streams_and_includes_network_waits(tmp_path):
+    clock = [0.0]
+    session = VerboseDownloadLog.create(str(tmp_path), monotonic=lambda: clock[0])
+    clock[0] = 5
+    session.handle_ytdlp_line('[download] Destination: Private.f299.mp4')
+    session.handle_ytdlp_line('[download] 1% of 100.00MiB at 100.00MiB/s ETA 00:01')
+    clock[0] = 25
+    session.handle_ytdlp_line('HTTPS connect rr1.googlevideo.com:443')
+    clock[0] = 95
+    session.handle_ytdlp_line('[download] 100% of 100.00MiB in 00:01:30 at 1.11MiB/s')
+    session.handle_ytdlp_line('[download] Destination: Private.f140.m4a')
+    clock[0] = 105
+    session.handle_ytdlp_line('[download] 100% of 10.00MiB in 00:00:10 at 1.00MiB/s')
+    # Повторная строка завершения не должна удваивать размер дорожки.
+    session.handle_ytdlp_line('[download] 100% of 10.00MiB in 00:00:10 at 1.00MiB/s')
+    session.handle_ytdlp_line('[Merger] Merging formats into "Private.mp4"')
+    clock[0] = 125
+    session.close('success')
+    text = Path(session.path).read_text(encoding='utf-8')
+    assert '110.00 MiB (all streams)' in text
+    assert 'avg speed: 1.10 MiB/s' in text
+    assert 'first progress: 5.0s' in text
+    assert 'Private' not in text

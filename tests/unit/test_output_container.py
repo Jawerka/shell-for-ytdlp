@@ -92,6 +92,9 @@ def test_config_merges_old_and_new_settings(saved, expected):
 
 def test_settings_save_passes_container_and_quality():
     dialog = SettingsDialog.__new__(SettingsDialog)
+    dialog.config_manager = Mock()
+    dialog.sponsorblock_policy_var = Mock()
+    dialog.sponsorblock_policy_var.get.return_value = 'Скачивать без вырезания'
     dialog.cookies_entry = Mock()
     dialog.cookies_entry.get.return_value = ''
     dialog.checkbox_vars = {}
@@ -116,6 +119,7 @@ def test_settings_save_passes_container_and_quality():
         None, [], False, True, '720', 'webm', False,
     )
     dialog.destroy.assert_called_once()
+    dialog.config_manager.set.assert_called_once_with('SPONSORBLOCK_FAILURE_POLICY', 'bypass')
 
 
 def test_main_window_persists_container():

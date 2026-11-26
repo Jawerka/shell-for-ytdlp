@@ -38,10 +38,11 @@ from core.pipeline import (
     validate_url_for_download,
     check_ytdlp_ready,
     get_ytdlp_download_url,
+    SponsorBlockAvailability,
 )
 from core.theme import COLOR_THEME, Spacing, setup_theme
 from core.icons import IconManager
-from core.notifications import send_download_complete, send_download_error
+from core.notifications import send_download_complete, send_download_error, NotificationManager
 from core.deno_installer import ensure_deno_exists
 from core.clipboard_monitor import ClipboardMonitor
 from core.sound_manager import SoundManager
@@ -50,6 +51,7 @@ from ui.components.url_input import UrlInput
 from ui.components.log_viewer import LogViewer
 from ui.components.progress_bar import ProgressBarWithText
 from ui.components.settings_dialog import SettingsDialog
+from ui.components.sponsorblock_dialog import SponsorBlockDialog
 from ui.tooltip import create_tooltip
 from ui.layout_config import (
     BTN_SIZE_W, BTN_SIZE_H, BTN_FONT_SIZE,
@@ -75,6 +77,8 @@ class MainWindow(ctk.CTk):
         self.is_downloading = False
         self.downloader: Optional[YouTubeDownloader] = None
         self._cancel_event = threading.Event()
+        self._sponsorblock_state = SponsorBlockAvailability()
+        self._download_result_message = 'Видео успешно загружено'
 
         self.icon_download = IconManager.get("download", "⭳")
         self.icon_folder = IconManager.get("folder", "📂")
@@ -739,8 +743,9 @@ class MainWindow(ctk.CTk):
             if download_success:
                 self.config_manager.set('LAST_DOWNLOADED_URL', url)
                 self.config_manager.save()
-                self.after(0, lambda: self.log_viewer.success("Загрузка завершена"))
-                self.after(100, lambda: send_download_complete("Загрузка завершена", "Видео успешно загружено"))
+                result_message = self.__dict__.get('_download_result_message', 'Видео успешно загружено')
+                self.after(0, lambda m=result_message: self.log_viewer.success(m))
+                self.after(100, lambda m=result_message: send_download_complete("Загрузка завершена", m))
                 self.after(150, lambda: self.sound_manager.play_end_download())
             elif download_attempted and not self._cancel_event.is_set():
                 self.after(0, lambda: self.log_viewer.error("Ошибка загрузки"))
@@ -898,10 +903,73 @@ class MainWindow(ctk.CTk):
 
         def progress_callback(percent: float, info: str):
             label = info if info else f"{percent:.1f}%"
+            if self.downloader and self.downloader._bypass_sponsorblock:
+                label = 'Без вырезания вставок · ' + label
             self.after(0, lambda p=percent, t=label: self.progress_bar.update_progress(p, text=t))
 
-        self.downloader = YouTubeDownloader(self.config_manager, log_callback, progress_callback)
-        return self.downloader.download(url)
+        question_alerted = False
+
+        def question(reason):
+            nonlocal question_alerted
+            done = threading.Event()
+            answer = [('cancel', False)]
+
+            def show():
+                nonlocal question_alerted
+                if self._cancel_event.is_set() or done.is_set():
+                    done.set()
+                    return
+                if not question_alerted:
+                    question_alerted = True
+                    try:
+                        self.sound_manager.play_attention()
+                    except Exception:
+                        logger.warning('Не удалось воспроизвести сигнал SponsorBlock', exc_info=True)
+                    if self.state() != 'normal':
+                        try:
+                            NotificationManager(self.config_manager).send(
+                                'SponsorBlock не отвечает',
+                                'Откройте приложение: скачать без вырезания вставок?')
+                        except Exception:
+                            logger.warning('Не удалось показать уведомление SponsorBlock', exc_info=True)
+
+                def respond(value):
+                    answer[0] = value
+                    done.set()
+
+                try:
+                    SponsorBlockDialog(self, respond,
+                                       lambda: self._cancel_event.is_set() or done.is_set())
+                except Exception:
+                    logger.exception('Не удалось открыть вопрос SponsorBlock')
+                    done.set()
+
+            self.after(0, show)
+            while not done.wait(0.1):
+                if self._cancel_event.is_set():
+                    done.set()
+                    return 'cancel', False
+            return answer[0]
+
+        def notice(message):
+            # Сообщение уже записано загрузчиком; здесь только системное уведомление.
+            def show_notice():
+                try:
+                    NotificationManager(self.config_manager).send('SponsorBlock', message)
+                except Exception:
+                    logger.warning('Не удалось показать уведомление SponsorBlock', exc_info=True)
+            self.after(0, show_notice)
+
+        self.downloader = YouTubeDownloader(
+            self.config_manager, log_callback, progress_callback,
+            sponsorblock_state=self._sponsorblock_state,
+            sponsorblock_question=question, sponsorblock_notice=notice,
+        )
+        success = self.downloader.download(url)
+        if self.downloader._cancelled:
+            self._cancel_event.set()
+        self._download_result_message = self.downloader.result_message
+        return success
 
     def _on_download_complete(self) -> None:
         """Завершение загрузки."""
@@ -1040,6 +1108,9 @@ class MainWindow(ctk.CTk):
         if self._shutting_down:
             return
         self._shutting_down = True
+        self._cancel_event.set()
+        if self.downloader:
+            self.downloader.cancel()
         logger.debug("_shutdown_application: Завершение приложения")
 
         self._save_window_position()

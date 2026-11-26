@@ -88,7 +88,7 @@ class TestDownloadSubprocess:
         assert result is True
         phase_calls = [
             c for c in progress_callback.call_args_list
-            if c[0][1] == 'Слияние потоков (ffmpeg)...'
+            if c[0][1] == 'Объединение дорожек (ffmpeg). Большие файлы могут занять несколько минут...'
         ]
         assert phase_calls
 

@@ -404,6 +404,8 @@ class VerboseDownloadLog:
         self._format_ids: Optional[str] = None
         self._container: Optional[str] = None
         self._size_label: Optional[str] = None
+        self._completed_sizes = {}
+        self._current_destination = None
         self._height_label: Optional[str] = None
         self._video_codec: Optional[str] = None
         self._audio_codec: Optional[str] = None
@@ -498,6 +500,7 @@ class VerboseDownloadLog:
             self._mark_download_start(now)
         if '[download]' in raw and 'Destination:' in raw:
             self._mark_download_start(now)
+            self._current_destination = raw.split('Destination:', 1)[1].strip()
         if 'Downloading fragment' in raw:
             self._mark_download_start(now)
         is_progress = kind == 'progress' or (
@@ -512,6 +515,11 @@ class VerboseDownloadLog:
                 speed = _parse_speed_kib(raw)
                 if speed is not None:
                     self._speeds_kib.append(speed)
+            elif self._current_destination is not None:
+                size = re.search(r'of\s+(\d+\.?\d*)\s*(KiB|MiB|GiB)', raw)
+                if size:
+                    multiplier = {'KiB': 1024, 'MiB': 1024**2, 'GiB': 1024**3}[size[2]]
+                    self._completed_sizes[self._current_destination] = float(size[1]) * multiplier
             self._last_progress_at = now
             size_match = re.search(r'of\s+(\d+\.?\d*\s*(?:KiB|MiB|GiB))', raw)
             if size_match:
@@ -526,7 +534,7 @@ class VerboseDownloadLog:
         if _RETRY_RE.search(raw):
             self._retries += 1
         stats = _STATS_BYTES_RE.search(raw)
-        if stats:
+        if stats and self._merge_at is None:
             nbytes = int(stats.group(1))
             self._ffmpeg_bytes += nbytes
             if self._last_tcp_host:
@@ -568,8 +576,6 @@ class VerboseDownloadLog:
             stats['methods']['CONNECT'] += 1
             stats['count'] += 1
             self._last_tcp_host = host
-            if self._download_start_at is not None and self._first_byte_at is None:
-                self._first_byte_at = now
             return
         if len(parts) >= 3:
             method, host, status = parts[0], parts[1], parts[2]
@@ -595,7 +601,9 @@ class VerboseDownloadLog:
             parts.append('+'.join(codecs))
         if self._container:
             parts.append(self._container)
-        if self._size_label:
+        if len(self._completed_sizes) > 1:
+            parts.append(_format_bytes(int(sum(self._completed_sizes.values()))) + ' (all streams)')
+        elif self._size_label:
             parts.append(self._size_label)
         if not parts:
             return None
@@ -605,9 +613,9 @@ class VerboseDownloadLog:
         if self._ffmpeg_bytes and download_seconds > 0:
             mib_s = (self._ffmpeg_bytes / download_seconds) / (1024 * 1024)
             return f'avg speed: {mib_s:.2f} MiB/s'
-        if self._speeds_kib:
-            avg = sum(self._speeds_kib) / len(self._speeds_kib)
-            return f'avg speed: {avg / 1024:.2f} MiB/s'
+        if self._completed_sizes and download_seconds > 0:
+            avg = sum(self._completed_sizes.values()) / download_seconds / (1024 * 1024)
+            return f'avg speed: {avg:.2f} MiB/s (completed media bytes / download elapsed; includes waits, may include resumed data)'
         return None
 
     def _host_unit(self, stats: Dict) -> str:
@@ -623,7 +631,8 @@ class VerboseDownloadLog:
         parse_until = download_start or self._merge_at or end
         download_end = self._last_progress_at or self._merge_at or end
         merge_start = self._merge_at or end
-        ttfb_at = self._first_byte_at or self._first_progress_at or parse_until
+        first_progress = (f'{_format_duration(self._first_progress_at - self._t0)}'
+                          if self._first_progress_at is not None else 'not observed')
         download_seconds = 0.0
         if download_start is not None:
             download_seconds = download_end - download_start
@@ -634,8 +643,8 @@ class VerboseDownloadLog:
             '--- summary ---',
             f'result: {result}',
             f'total: {_format_duration(total)}',
-            f'  page parse: {_format_duration(parse_until - self._t0)}',
-            f'  time to first byte: {_format_duration(ttfb_at - self._t0)}',
+            f'  preparation (includes waits/retries): {_format_duration(parse_until - self._t0)}',
+            f'  first progress: {first_progress}',
             f'  download: {_format_duration(download_seconds)}',
         ]
         if self._transcoding and self._encode_start_at is not None:

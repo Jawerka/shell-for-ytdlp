@@ -5,7 +5,7 @@
 
 **Modern GUI for yt-dlp built with customtkinter.**
 
-![Version](https://img.shields.io/badge/version-0.3.8-blue)
+![Version](https://img.shields.io/badge/version-0.3.9-blue)
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -261,6 +261,12 @@ pytest tests/ -m "not integration" --cov=core.pipeline --cov=core.downloader --c
 ---
 
 ## Changelog
+
+### v0.3.9 (2026-11-26)
+- Байпас SponsorBlock с согласием пользователя, сохранением выбора и автоматическим восстановлением вырезания после возвращения сервиса
+- Понятные сообщения о сетевых повторах, отдельных дорожках и объединении файлов
+- Исправлены размеры, средняя скорость и обозначения времени в диагностических журналах
+- Release notes: [.github/release-notes/v0.3.9.md](.github/release-notes/v0.3.9.md)
 
 ### v0.3.5 (2026-11-12)
 - В настройках выбор качества загрузки: 480p, 720p, 1080p или максимально доступное
